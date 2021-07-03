@@ -274,6 +274,8 @@ class Dataset(torch.utils.data.Dataset):
 class Model(nn.Module):
     def __init__(self, agent_features, condition_features, out_dim=5, hidden_1=256, hidden_2=32):
         super().__init__()
+        # TODO: EmbeddingBag に書き換える
+        # TODO: Embedの初期化を小さめの値にする
         self.embed = nn.Embedding(agent_features, hidden_1, padding_idx=-100)
         self.embed_condition = nn.Embedding(condition_features, hidden_1, padding_idx=-100)
         self.linear_condition = nn.Linear(hidden_1, hidden_2)
