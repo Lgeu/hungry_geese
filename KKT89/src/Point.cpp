@@ -15,4 +15,8 @@ Point::Point(int aId): x(), y(), id(aId) {
     y = aId % Parameter::columns;
 }
 
+bool Point::operator== (const Point &aPos) const {
+    return (id == aPos.id);
+}
+
 }

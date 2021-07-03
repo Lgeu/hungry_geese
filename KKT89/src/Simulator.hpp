@@ -4,6 +4,7 @@
 #include <fstream>
 #include "Random.hpp"
 #include "Game.hpp"
+#include "Parameter.hpp"
 
 namespace hungry_geese {
     

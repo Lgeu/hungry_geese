@@ -3,7 +3,11 @@
 
 namespace hungry_geese {
 
-Stage::Stage() : mGeese(), mFoods(), mBoard() {}
+Stage::Stage() : mGeese(), mFoods(), mBoard() {
+	for (int i = 0; i < 77; ++i) {
+		mBoard[i] = 0;
+	}
+}
 
 const Geese& Stage::geese() const {
 	return mGeese;
@@ -13,6 +17,10 @@ const Foods& Stage::foods() const {
 	return mFoods;
 }
 
+const Actions& Stage::actions() const {
+	return mActions;
+}
+
 bool Stage::isEnd() const {
 	int Survivor = 0;
 	for (Goose goose: mGeese) {
@@ -20,17 +28,13 @@ bool Stage::isEnd() const {
 			++Survivor;
 		}
 	}
-	return (Survivor == 1);
+	return (Survivor <= 1);
 }
 
 void Stage::InitializeBoard() {
-	// 初期化
-	for (int i = 0; i < 77; ++i) {
-		mBoard[i] = 0;
-	}
-
 	// Goose
 	for (Goose goose: geese()) {
+		if (!goose.isSurvive()) continue;
 		auto items = goose.items();
 		for (int i = 0; i < items.right; ++i) {
 			auto pos = items[i];
@@ -48,6 +52,19 @@ void Stage::InitializeBoard() {
 
 bool Stage::isEmpty(int aId) const {
 	return (mBoard[aId] == 0);
+}
+
+int Stage::randPos(int aId) const {
+	for (int i = 0; i < 77; ++i) {
+		if (isEmpty(aId)) {
+			return aId;
+		}
+		++aId;
+		if (aId >= 77) {
+			aId = 0;
+		}
+	}
+	return aId;
 }
 
 }

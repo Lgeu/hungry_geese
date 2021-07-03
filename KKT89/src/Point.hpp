@@ -12,6 +12,9 @@ struct Point {
     int x;
     int y;
     int id;
+
+    // 演算子オーバーロード
+    bool operator== (const Point &aPos) const;
 };
 
 }

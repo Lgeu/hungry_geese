@@ -15,6 +15,8 @@ struct Parameter {
     static const int rows = 7;
     // 各ターン存在する食べ物の数
     static const int min_food = 2;
+    // max_length
+    static const int max_length = 99;
     // hunger_rate 毎に長さが減少
     static const int hunger_rate = 40;
 };
