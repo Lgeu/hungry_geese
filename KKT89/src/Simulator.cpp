@@ -11,12 +11,24 @@ void Simulator::changeSeed(uint aX) {
     rand = Random(aX);
 }
 
-void Simulator::setKifID(int idx) {
-    std::string ID = "000000";
-    for (int i = 0; i < 6; ++i) {
-        ID[5 - i] = (char)(idx % 10 + '0');
-        idx /= 10;
-    }
+std::string Simulator::getDatetimeStr() const {
+    time_t t = time(nullptr);
+    const tm* localTime = localtime(&t);
+    std::stringstream s;
+    s << "20" << localTime->tm_year - 100;
+    // setw(),setfill()で0詰め
+    s << std::setw(2) << std::setfill('0') << localTime->tm_mon + 1;
+    s << std::setw(2) << std::setfill('0') << localTime->tm_mday;
+    s << std::setw(2) << std::setfill('0') << localTime->tm_hour;
+    s << std::setw(2) << std::setfill('0') << localTime->tm_min;
+    s << std::setw(2) << std::setfill('0') << localTime->tm_sec;
+    // std::stringにして値を返す
+    std::cerr << s.str() << std::endl;
+    return s.str();
+}
+
+void Simulator::setKifID() {
+    std::string ID = getDatetimeStr();
     KifID = ID;
 }
 

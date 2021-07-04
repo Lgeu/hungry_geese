@@ -18,14 +18,11 @@ int main(int aArgc, const char* aArgv[]) {
                     n += 1;
                 }
             }
-            // 棋譜への出力及び、棋譜IDを指定
+            // 棋譜への出力を指定
+            // 棋譜IDは日付にするように変更した
             else if (std::strcmp(aArgv[n], "-j") == 0) {
                 willPrintKif = true;
-                if (n + 1 < aArgc) {
-                    uint x = uint(std::strtoul(aArgv[n + 1], nullptr, 0));
-                    fSim.setKifID(x);
-                    n += 1;
-                }
+                fSim.setKifID();
             }
         }
     }
