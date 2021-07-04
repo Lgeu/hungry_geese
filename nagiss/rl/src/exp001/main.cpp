@@ -67,7 +67,7 @@ struct Tensor3{
         return ((U*)&data)->raveled;
     }
     template<int new_dim_1, int new_dim_2>
-    Matrix<new_dim_1, new_dim_2>  View(){
+    Matrix<T, new_dim_1, new_dim_2>  View(){
         static_assert(dim1 * dim2 * dim3 == new_dim_1 * new_dim_2, "View の次元がおかしいよ");
         union U{
             Tensor3 data;
@@ -440,18 +440,11 @@ struct BitBoard{
         using nagiss_library::popcount;
         return popcount(lo) + popcount(hi);
     }
-    inline int Neighbor12(const int& idx) const {
-        // 00100
-        // 01110
-        // 11011
-        // 01110
-        // 00100
-        // 遅かったら表引き->pext->表引きで高速化する
-        using nagiss_library::Vec2;
+    template<unsigned size>
+    inline int Neighbor(const int& idx, const array<nagiss_library::Vec2<int>, size>& dyxs) const {
         int res = 0;
-        constexpr auto dyxs = array<Vec2<int>, 12>{Vec2<int>{-2,0},{-1,-1},{-1,0},{-1,1},{0,-2},{0,-1},{0,1},{0,2},{1,-1},{1,0},{1,1},{2,0}};
         auto yx0 = Vec2<int>{idx / 11, idx % 11};
-        for(int i=0; i<12; i++){
+        for(int i=0; i<(int)size; i++){
             auto yx = yx0 + dyxs[i];
             if (yx.y < 0) yx.y += 7;
             else if(yx.y >= 7) yx.y -= 7;
@@ -461,6 +454,37 @@ struct BitBoard{
             res |= ((idx_ < 55 ? lo >> idx_ : hi >> idx_-55) & 1) << i;
         }
         return res;
+    }
+    inline int Neighbor12(const int& idx) const {
+        // 00100
+        // 01110
+        // 11@11
+        // 01110
+        // 00100
+        // 遅かったら表引き->pext->表引きで高速化する
+        using nagiss_library::Vec2;
+        constexpr auto dyxs = array<Vec2<int>, 12>{Vec2<int>{-2,0},{-1,-1},{-1,0},{-1,1},{0,-2},{0,-1},{0,1},{0,2},{1,-1},{1,0},{1,1},{2,0}};
+        return Neighbor(idx, dyxs);
+    }
+    inline int NeighborUp7(const int& idx) const {  // 遅かったら表引き->pext->表引きで高速化する
+        using nagiss_library::Vec2;
+        constexpr auto dyxs = array<Vec2<int>, 7>{Vec2<int>{-3,0},{-2,-1},{-2,0},{-2,1},{-1,-1},{-1,0},{-1,1}};
+        return Neighbor(idx, dyxs);
+    }
+    inline int NeighborDown7(const int& idx) const {  // 遅かったら表引き->pext->表引きで高速化する
+        using nagiss_library::Vec2;
+        constexpr auto dyxs = array<Vec2<int>, 7>{Vec2<int>{3,0},{2,-1},{2,0},{2,1},{1,-1},{1,0},{1,1}};
+        return Neighbor(idx, dyxs);
+    }
+    inline int NeighborLeft7(const int& idx) const {  // 遅かったら表引き->pext->表引きで高速化する
+        using nagiss_library::Vec2;
+        constexpr auto dyxs = array<Vec2<int>, 7>{Vec2<int>{0,-3},{-1,-2},{0,-2},{1,-2},{-1,-1},{0,-1},{1,-1}};
+        return Neighbor(idx, dyxs);
+    }
+    inline int NeighborRight7(const int& idx) const {  // 遅かったら表引き->pext->表引きで高速化する
+        using nagiss_library::Vec2;
+        constexpr auto dyxs = array<Vec2<int>, 7>{Vec2<int>{0,3},{-1,2},{0,2},{1,2},{-1,1},{0,1},{1,1}};
+        return Neighbor(idx, dyxs);
     }
     inline bool Empty() const {
         return lo == 0ull && hi == 0ull;
@@ -572,14 +596,14 @@ namespace offset{
     auto HOGE = 123;
 }
 
-template<class Stack>  // std::vector とだいたい同等の操作ができるクラス
+template<class IntStack>  // std::vector とだいたい同等の操作ができるクラス
 void ExtractFeatures(
-    const array<Stack<int, 77>, 4>& geese,
+    const array<IntStack, 4>& geese,
     const array<int, 2>& foods,
     const BitBoard& occupied_bitboard,  // いずれかの geese がいる位置が 1、それ以外が 0
     Info info,  // TODO ターン数など
-    array<Stack, 4>& agent_features,    // output
-    Stack& condition_features           // output
+    array<IntStack, 4>& agent_features,    // output
+    IntStack& condition_features           // output
 ){
     using nagiss_library::Vec2;
     using nagiss_library::clipped;
@@ -591,12 +615,12 @@ void ExtractFeatures(
     for(int i=0; i<4; i++) agent_features[i].clear();
     condition_features.clear();
     
-    // 前処理
+    // 前処理: ソートした長さ
     auto sorted_lengths = array<int, 4>();
     for(int i=0; i<4; i++) sorted_lengths[i] = geese[i].size();
     sort(sorted_lengths.begin(), sorted_lengths.end(), greater<>);
 
-    // future ステップ以内に到達可能な場所 (他 geese の頭が動かないと仮定)
+    // 前処理: future ステップ以内に到達可能な場所 (他 geese の頭が動かないと仮定)
     auto not_occupied = BitBoard(occupied_bitboard);
     not_occupied.Invert();
     constexpr auto MAX_FEATURE_REACHABLE_CALCULATION = 5;
@@ -650,10 +674,19 @@ void ExtractFeatures(
         const auto head_vec = Vec2<int>(head/11, head%11);
         const auto tail_vec = Vec2<int>(tail/11, tail%11);
 
-        // 距離 2 までの全パターン
-        const auto pattern = occupied_bitboard.Neighbor12(head);
-        ASSERT_RANGE(pattern, 0, 1<<12);
-        features.push(offset::NEIGHBOR12 + pattern);
+        // 上下左右の近傍 7 マス
+        const auto neighbor_up_7 = occupied_bitboard.NeighborUp7(head);
+        ASSERT_RANGE(neighbor_up_7, 0, 1<<7);
+        features.push(offset::NEIGHBOR_UP_7 + neighbor_up_7);
+        const auto neighbor_down_7 = occupied_bitboard.NeighborDown7(head);
+        ASSERT_RANGE(neighbor_down_7, 0, 1<<7);
+        features.push(offset::NEIGHBOR_DOWN_7 + neighbor_down_7);
+        const auto neighbor_left_7 = occupied_bitboard.NeighborLeft7(head);
+        ASSERT_RANGE(neighbor_left_7, 0, 1<<7);
+        features.push(offset::NEIGHBOR_LEFT_7 + neighbor_left_7);
+        const auto neighbor_right_7 = occupied_bitboard.NeighborRight7(head);
+        ASSERT_RANGE(neighbor_right_7, 0, 1<<7);
+        features.push(offset::NEIGHBOR_RIGHT_7 + neighbor_right_7);
 
         // goose の長さ
         const auto length = goose.size();
@@ -792,15 +825,27 @@ void ExtractFeatures(
             ASSERT_RANGE(n_exclusively_reachable_positions_within_n_steps, 0, array<int, MAX_FEATURE_REACHABLE_CALCULATION>{5, 13, 25, 40, 57}[n-1]);  // 合ってる？
             features.push(offset::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_N_STEPS[n-1] + n_exclusively_reachable_positions_within_n_steps);
         }
-
-
-
-
     }
 
     // 全体の特徴量
     // TODO
-
+    // 生存人数・埋まってるマスの数
+    auto n_aliving_geese = 0;
+    auto n_occupied_positions = 0;
+    for(int i=0; i<4; i++){
+        if(geese[i].size() == 0) continue;
+        n_aliving_geese++
+        n_occupied_positions += geese[i].size();
+    }
+    ASSERT_RANGE(n_aliving_geese, 2, 5);
+    condition_features.push(offset::N_ALIVING_GEESE + n_aliving_geese);
+    ASSERT_RANGE(n_occupied_positions, 2, 78);
+    condition_features.push(offset::N_OCCUPIED_POSITIONS + n_occupied_positions);
+    
+    // ステップ
+    ASSERT_RANGE(info.step, 0, 199);
+    condition_features.push(offset::STEP + info.step);
+    
 }
 }  // namespace feature
 
@@ -830,7 +875,6 @@ int main(){
     namespace test = evaluation_function::test;
     //test::CheckLinear();
     //test::CheckTorusConv2d();
-    test::CheckGeeseNet();
     //test::CheckGeeseNetTime();
 }
 
