@@ -596,11 +596,180 @@ namespace offset{
     auto HOGE = 123;
 }
 
+
+enum struct Features {
+    NEIGHBOR_UP_7,
+    NEIGHBOR_DOWN_7,
+    NEIGHBOR_LEFT_7,
+    NEIGHBOR_RIGHT_7,
+    LENGTH,
+    DIFFERENCE_LENGTH_1ST,
+    DIFFERENCE_LENGTH_2ND,
+    DIFFERENCE_LENGTH_3RD,
+    DIFFERENCE_LENGTH_4TH,
+    RELATIVE_POSITION_TAIL,
+    RELATIVE_POSITION_OPPONENT_HEAD,
+    RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL,
+    RELATIVE_POSITION_FOOD,
+    MOVE_HISTORY,
+    RELATIVE_POSITION_TAIL_ON_PLANE_X,
+    RELATIVE_POSITION_TAIL_ON_PLANE_Y,
+    N_REACHABLE_POSITIONS_WITHIN_1_STEP,  // 大きめに用意しておくと後で調整しやすそう？
+    N_REACHABLE_POSITIONS_WITHIN_2_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_3_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_4_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_5_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_6_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_7_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_8_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_1_STEP,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_2_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_3_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_4_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_5_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_6_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_7_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_8_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_1_STEP,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_2_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_3_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_4_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_5_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_6_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_7_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_8_STEPS,
+    N_ALIVING_GEESE,
+    N_OCCUPIED_POSITIONS,
+    STEP,
+    END  // 番兵的なやつ
+};
+constexpr auto N_FEATURES = (int)Features::END;
+
+struct Min {
+    array<int, N_FEATURES> data;
+    constexpr Min() : data() {
+        data[(int)Features::NEIGHBOR_UP_7] = 0;
+        data[(int)Features::NEIGHBOR_DOWN_7] = 0;
+        data[(int)Features::NEIGHBOR_LEFT_7] = 0;
+        data[(int)Features::NEIGHBOR_RIGHT_7] = 0;
+        data[(int)Features::LENGTH] = 1;
+        data[(int)Features::DIFFERENCE_LENGTH_1ST] = -10;
+        data[(int)Features::DIFFERENCE_LENGTH_2ND] = -10;
+        data[(int)Features::DIFFERENCE_LENGTH_3RD] = -10;
+        data[(int)Features::DIFFERENCE_LENGTH_4TH] = -10;
+        data[(int)Features::RELATIVE_POSITION_TAIL] = 0;
+        data[(int)Features::RELATIVE_POSITION_OPPONENT_HEAD] = 1;
+        data[(int)Features::RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL] = 1;
+        data[(int)Features::RELATIVE_POSITION_FOOD] = 1;
+        data[(int)Features::MOVE_HISTORY] = 0;
+        data[(int)Features::RELATIVE_POSITION_TAIL_ON_PLANE_X] = 30;
+        data[(int)Features::RELATIVE_POSITION_TAIL_ON_PLANE_Y] = 30;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_1_STEP] = 1;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_2_STEPS] = 1;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_3_STEPS] = 1;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_4_STEPS] = 1;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_5_STEPS] = 1;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_6_STEPS] = 1;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_7_STEPS] = 1;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_8_STEPS] = 1;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_1_STEP] = 0;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_2_STEPS] = 0;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_3_STEPS] = 0;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_4_STEPS] = 0;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_5_STEPS] = 0;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_6_STEPS] = 0;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_7_STEPS] = 0;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_8_STEPS] = 0;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_1_STEP] = 0;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_2_STEPS] = 0;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_3_STEPS] = 0;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_4_STEPS] = 0;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_5_STEPS] = 0;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_6_STEPS] = 0;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_7_STEPS] = 0;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_8_STEPS] = 0;
+        data[(int)Features::N_ALIVING_GEESE] = 2;
+        data[(int)Features::N_OCCUPIED_POSITIONS] = 2;
+        data[(int)Features::STEP] = 0;
+    }
+    const int& operator[](const Features& feature) const {
+        return data[(int)feature];
+    }
+} MIN;
+
+struct Max {
+    array<int, N_FEATURES> data;
+    constexpr Max() : data() {
+        data[(int)Features::NEIGHBOR_UP_7] = (1 << 7) - 1;
+        data[(int)Features::NEIGHBOR_DOWN_7] = (1 << 7) - 1;
+        data[(int)Features::NEIGHBOR_LEFT_7] = (1 << 7) - 1;
+        data[(int)Features::NEIGHBOR_RIGHT_7] = (1 << 7) - 1;
+        data[(int)Features::LENGTH] = 77;
+        data[(int)Features::DIFFERENCE_LENGTH_1ST] = 10;
+        data[(int)Features::DIFFERENCE_LENGTH_2ND] = 10;
+        data[(int)Features::DIFFERENCE_LENGTH_3RD] = 10;
+        data[(int)Features::DIFFERENCE_LENGTH_4TH] = 10;
+        data[(int)Features::RELATIVE_POSITION_TAIL] = 76;
+        data[(int)Features::RELATIVE_POSITION_OPPONENT_HEAD] = 76;
+        data[(int)Features::RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL] = 76;
+        data[(int)Features::RELATIVE_POSITION_FOOD] = 76;
+        data[(int)Features::MOVE_HISTORY] = 4 * 4 * 4 * 4 - 1;
+        data[(int)Features::RELATIVE_POSITION_TAIL_ON_PLANE_X] = 30;
+        data[(int)Features::RELATIVE_POSITION_TAIL_ON_PLANE_Y] = 30;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_1_STEP] = 5;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_2_STEPS] = 13;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_3_STEPS] = 25;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_4_STEPS] = 39;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_5_STEPS] = 53;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_6_STEPS] = 65;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_7_STEPS] = 73;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_8_STEPS] = 77;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_1_STEP] = 3;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_2_STEPS] = 3;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_3_STEPS] = 3;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_4_STEPS] = 3;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_5_STEPS] = 3;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_6_STEPS] = 3;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_7_STEPS] = 3;
+        data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_8_STEPS] = 3;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_1_STEP] = 5;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_2_STEPS] = 13;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_3_STEPS] = 25;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_4_STEPS] = 39;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_5_STEPS] = 53;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_6_STEPS] = 65;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_7_STEPS] = 73;
+        data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_8_STEPS] = 77;
+        data[(int)Features::N_ALIVING_GEESE] = 4;
+        data[(int)Features::N_OCCUPIED_POSITIONS] = 77;
+        data[(int)Features::STEP] = 198;
+    }
+    const int& operator[](const Features& feature) const {
+        return data[(int)feature];
+    }
+} MAX;
+
+struct Offset {
+    array<int, N_FEATURES> data;
+    constexpr Offset(const Min& min_, const Max& max_) : data() {
+        int idx = 0;
+        for (auto i = 0; i < N_FEATURES; i++) {
+            data[i] = idx - min_.data[i];
+            idx += max_.data[i] - min_.data[i] + 1;
+        }
+    }
+    const int& operator[](const Features& feature) const {
+        return data[(int)feature];
+    }
+} OFFSET(MIN, MAX);
+
+constexpr auto MAX_FEATURE_REACHABLE_CALCULATION = 8;
+
 template<class IntStack>  // std::vector とだいたい同等の操作ができるクラス
 void ExtractFeatures(
     const array<IntStack, 4>& geese,
     const array<int, 2>& foods,
-    const BitBoard& occupied_bitboard,  // いずれかの geese がいる位置が 1、それ以外が 0
+    const BitBoard& occupied_bitboard,  // いずれかの geese がいる位置が 1、それ以外が 0  // TODO: これ中で作っていいかも 差分更新できなくなるけど
     Info info,  // TODO ターン数など
     array<IntStack, 4>& agent_features,    // output
     IntStack& condition_features           // output
@@ -618,13 +787,12 @@ void ExtractFeatures(
     // 前処理: ソートした長さ
     auto sorted_lengths = array<int, 4>();
     for(int i=0; i<4; i++) sorted_lengths[i] = geese[i].size();
-    sort(sorted_lengths.begin(), sorted_lengths.end(), greater<>);
+    sort(sorted_lengths.begin(), sorted_lengths.end(), greater<>());
 
     // 前処理: future ステップ以内に到達可能な場所 (他 geese の頭が動かないと仮定)
     auto not_occupied = BitBoard(occupied_bitboard);
     not_occupied.Invert();
-    constexpr auto MAX_FEATURE_REACHABLE_CALCULATION = 5;
-    auto reachable_positions = array<array<BitBoard, MAX_FEATURE_REACHABLE_CALCULATION+1>, 4>()  // 各 goose の 1 ~ 5 ステップ後に到達可能な場所
+    auto reachable_positions = array<array<BitBoard, MAX_FEATURE_REACHABLE_CALCULATION + 1>, 4>();  // 各 goose の 1 ~ 5 ステップ後に到達可能な場所
     for(int i=0; i<4; i++){
         if (geese[i].size() == 0) continue;
         reachable_positions[i][0].Flip(geese[i].front());
@@ -634,7 +802,7 @@ void ExtractFeatures(
         for(int i=0; i<4; i++){
             auto geese_i_clearing_idx = geese[i].size() - clearing_count;
             if(geese_i_clearing_idx < 0) continue;
-            const auto& idx = geese[i][geese_i_clearing_idx]
+            const auto& idx = geese[i][geese_i_clearing_idx];
             not_occupied.Flip(idx);
             ASSERT(not_occupied[idx], "しっぽを消そうと思ったらしっぽが無かったよ");
         }
@@ -644,7 +812,7 @@ void ExtractFeatures(
             for(int i=0; i<4; i++){
                 auto geese_i_clearing_idx = geese[i].size() - clearing_count;
                 if(geese_i_clearing_idx < 0) continue;
-                const auto& idx = geese[i][geese_i_clearing_idx]
+                const auto& idx = geese[i][geese_i_clearing_idx];
                 not_occupied.Flip(idx);
                 ASSERT(not_occupied[idx], "しっぽを消そうと思ったらしっぽが無かったよ");
             }
@@ -664,7 +832,7 @@ void ExtractFeatures(
 
     // 各エージェント視点の特徴量
     for(int idx_agents=0; idx_agents<4; idx_agents++){
-        const auto& goose = geese[idx_agnents];
+        const auto& goose = geese[idx_agents];
         if(goose.size() == 0) continue;  // もう脱落していた場合、飛ばす
 
         // 基本的な情報を抽出
@@ -676,28 +844,28 @@ void ExtractFeatures(
 
         // 上下左右の近傍 7 マス
         const auto neighbor_up_7 = occupied_bitboard.NeighborUp7(head);
-        ASSERT_RANGE(neighbor_up_7, 0, 1<<7);
-        features.push(offset::NEIGHBOR_UP_7 + neighbor_up_7);
+        ASSERT_RANGE(neighbor_up_7, MIN[Features::NEIGHBOR_UP_7], MAX[Features::NEIGHBOR_UP_7] + 1);
+        features.push(OFFSET[Features::NEIGHBOR_UP_7] + neighbor_up_7);
         const auto neighbor_down_7 = occupied_bitboard.NeighborDown7(head);
-        ASSERT_RANGE(neighbor_down_7, 0, 1<<7);
-        features.push(offset::NEIGHBOR_DOWN_7 + neighbor_down_7);
+        ASSERT_RANGE(neighbor_down_7, MIN[Features::NEIGHBOR_DOWN_7], MAX[Features::NEIGHBOR_DOWN_7] + 1);
+        features.push(OFFSET[Features::NEIGHBOR_DOWN_7] + neighbor_down_7);
         const auto neighbor_left_7 = occupied_bitboard.NeighborLeft7(head);
-        ASSERT_RANGE(neighbor_left_7, 0, 1<<7);
-        features.push(offset::NEIGHBOR_LEFT_7 + neighbor_left_7);
+        ASSERT_RANGE(neighbor_left_7, MIN[Features::NEIGHBOR_LEFT_7], MAX[Features::NEIGHBOR_LEFT_7] + 1);
+        features.push(OFFSET[Features::NEIGHBOR_LEFT_7] + neighbor_left_7);
         const auto neighbor_right_7 = occupied_bitboard.NeighborRight7(head);
-        ASSERT_RANGE(neighbor_right_7, 0, 1<<7);
-        features.push(offset::NEIGHBOR_RIGHT_7 + neighbor_right_7);
+        ASSERT_RANGE(neighbor_right_7, MIN[Features::NEIGHBOR_RIGHT_7], MAX[Features::NEIGHBOR_RIGHT_7] + 1);
+        features.push(OFFSET[Features::NEIGHBOR_RIGHT_7] + neighbor_right_7);
 
         // goose の長さ
         const auto length = goose.size();
-        ASSERT_RANGE(pattern, 1, 78);
-        features.push(offset::LENGTH + length);
+        ASSERT_RANGE(length, MIN[Features::LENGTH], MAX[Features::LENGTH] + 1);
+        features.push(OFFSET[Features::LENGTH] + length);
 
         // [1-4] 番目に長い goose との長さの差
         for(int rank=0; rank<4; rank++){
             auto difference_length = length - sorted_lengths[rank];
-            difference_length = clipped(difference_length, -10, 10);
-            features.push(offset::DIFFERENCE_LENGTH[rank] + difference_length);
+            difference_length = clipped(difference_length, MIN[(Features)(rank + (int)Features::DIFFERENCE_LENGTH_1ST)], MAX[(Features)(rank + (int)Features::DIFFERENCE_LENGTH_1ST)]);
+            features.push(OFFSET[(Features)(rank + (int)Features::DIFFERENCE_LENGTH_1ST)] + difference_length);
         }
         
         // しっぽの位置
@@ -714,27 +882,27 @@ void ExtractFeatures(
             return relative_position;
         };
         const auto relative_tail = CalcRelativePosition(head, tail);
-        ASSERT_RANGE(relative_tail, 0, 77);  // 長さが 1 の場合に頭と同じ (0) になる
-        features.push(offset::RELATIVE_POSITION_TAIL + relative_tail);
+        ASSERT_RANGE(relative_tail, MIN[Features::RELATIVE_POSITION_TAIL], MAX[Features::RELATIVE_POSITION_TAIL] + 1);  // 長さが 1 の場合に頭と同じ (0) になる
+        features.push(OFFSET[Features::RELATIVE_POSITION_TAIL] + relative_tail);
 
         // 敵の頭の位置・しっぽから見た敵の頭の位置
         for(int opponent=0; opponent<4; opponent++){
             if (opponent == idx_agents || geese[opponent].size() == 0) continue;
             const auto& opponent_head = geese[opponent].front();
             const auto relative_opponent_head = CalcRelativePosition(head, opponent_head);
-            ASSERT_RANGE(relative_opponent_head, 1, 77);
-            features.push(offset::RELATIVE_POSITION_OPPONENT_HEAD + relative_opponent_head);
+            ASSERT_RANGE(relative_opponent_head, MIN[Features::RELATIVE_POSITION_OPPONENT_HEAD], MAX[Features::RELATIVE_POSITION_OPPONENT_HEAD] + 1);
+            features.push(OFFSET[Features::RELATIVE_POSITION_OPPONENT_HEAD] + relative_opponent_head);
 
             const auto relative_opponent_head_from_tail =  CalcRelativePosition(tail, opponent_head);
-            ASSERT_RANGE(relative_opponent_head_from_tail, 1, 77);
-            features.push(offset::RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL + relative_opponent_head_from_tail);
+            ASSERT_RANGE(relative_opponent_head_from_tail, MIN[Features::RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL], MAX[Features::RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL] + 1);
+            features.push(OFFSET[Features::RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL] + relative_opponent_head_from_tail);
         }
 
         // 食べ物の位置
         for (int idx_foods=0; idx_foods<foods.size(); idx_foods++){
             const auto relative_food = CalcRelativePosition(head, foods[idx_foods]);
-            ASSERT_RANGE(relative_food, 1, 77);
-            features.push(offset::RELATIVE_POSITION_FOOD + relative_food);
+            ASSERT_RANGE(relative_food, MIN[Features::RELATIVE_POSITION_FOOD], MAX[Features::RELATIVE_POSITION_FOOD] + 1);
+            features.push(OFFSET[Features::RELATIVE_POSITION_FOOD] + relative_food);
         }
 
         // 行動履歴
@@ -759,13 +927,13 @@ void ExtractFeatures(
                     direction = 3;
                     break;
                 default:
-                    ASSERT(false, "何か間違ってるよ")
+                    ASSERT(false, "何か間違ってるよ");
                 }
             }
             history |= direction << i * 2;
         }
-        ASSERT_RANGE(history, 0, 4*4*4*4);
-        features.push(offset::MOVE_HISTORY + history);
+        ASSERT_RANGE(history, MIN[Features::MOVE_HISTORY], MAX[Features::MOVE_HISTORY] + 1);
+        features.push(OFFSET[Features::MOVE_HISTORY] + history);
 
         // 平面上に置いたときのしっぽの相対位置  // 差分計算可能
         auto relative_tail_on_plane_x = 0;
@@ -787,19 +955,23 @@ void ExtractFeatures(
                 relative_tail_on_plane_x--;
                 break;
             default:
-                ASSERT(false, "何か間違ってるよ")
+                ASSERT(false, "何か間違ってるよ");
             }
         }
-        relative_tail_on_plane_x = clipped(relative_tail_on_plane_x, -30, 30);
-        relative_tail_on_plane_y = clipped(relative_tail_on_plane_y, -30, 30);
-        features.push(offset::RELATIVE_POSITION_TAIL_ON_PLANE_X + relative_tail_on_plane_x);
-        features.push(offset::RELATIVE_POSITION_TAIL_ON_PLANE_Y + relative_tail_on_plane_y);
+        relative_tail_on_plane_x = clipped(relative_tail_on_plane_x, MIN[Features::RELATIVE_POSITION_TAIL_ON_PLANE_X], MAX[Features::RELATIVE_POSITION_TAIL_ON_PLANE_X]);
+        relative_tail_on_plane_y = clipped(relative_tail_on_plane_y, MIN[Features::RELATIVE_POSITION_TAIL_ON_PLANE_Y], MAX[Features::RELATIVE_POSITION_TAIL_ON_PLANE_Y]);
+        features.push(OFFSET[Features::RELATIVE_POSITION_TAIL_ON_PLANE_X] + relative_tail_on_plane_x);
+        features.push(OFFSET[Features::RELATIVE_POSITION_TAIL_ON_PLANE_Y] + relative_tail_on_plane_y);
 
         // n ステップ以内に到達可能な場所の数 (他 geese の頭が動かないと仮定)
         for(int n=1; n<=MAX_FEATURE_REACHABLE_CALCULATION; n++){
             auto n_reachable_positions_within_n_steps = reachable_positions[idx_agents][n].Popcount();
-            ASSERT_RANGE(n_reachable_positions_within_n_steps, 1, array<int, MAX_FEATURE_REACHABLE_CALCULATION>{5, 13, 25, 40, 57}[n-1]);  // これも合ってるか？？
-            features.push(offset::N_REACHABLE_POSITIONS_WITHIN_N_STEPS[n-1] + n_reachable_positions_within_n_steps);
+            ASSERT_RANGE(
+                n_reachable_positions_within_n_steps,
+                MIN[(Features)(n - 1 + (int)Features::N_REACHABLE_POSITIONS_WITHIN_1_STEP)],
+                MAX[(Features)(n - 1 + (int)Features::N_REACHABLE_POSITIONS_WITHIN_1_STEP)] + 1
+            );
+            features.push(OFFSET[(Features)(n - 1 + (int)Features::N_REACHABLE_POSITIONS_WITHIN_1_STEP)] + n_reachable_positions_within_n_steps);
         }
 
         // n ステップ以内に到達可能な場所が被ってる敵の数
@@ -809,8 +981,12 @@ void ExtractFeatures(
                 if (i == idx_agents || geese[i].size() == 0) continue;
                 n_opponents_sharing_reachable_positions_within_n_steps += (int)!(reachable_positions[idx_agents][n] & reachable_positions[i][n]).Empty();
             }
-            ASSERT_RANGE(n_opponents_sharing_reachable_positions_within_n_steps, 0, 4);
-            features.push(offset::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_N_STEPS[n-1] + n_opponents_sharing_reachable_positions_within_n_steps);
+            ASSERT_RANGE(
+                n_opponents_sharing_reachable_positions_within_n_steps,
+                MIN[(Features)(n - 1 + (int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_1_STEP)],
+                MAX[(Features)(n - 1 + (int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_1_STEP)] + 1
+            );
+            features.push(OFFSET[(Features)(n - 1 + (int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_1_STEP)] + n_opponents_sharing_reachable_positions_within_n_steps);
         }
 
         // n ステップ以内に自分だけが到達可能な場所の数
@@ -822,8 +998,12 @@ void ExtractFeatures(
             }
             not_opponents_reachable.Invert();
             auto n_exclusively_reachable_positions_within_n_steps = (reachable_positions[idx_agents][n] & not_opponents_reachable).Popcount();
-            ASSERT_RANGE(n_exclusively_reachable_positions_within_n_steps, 0, array<int, MAX_FEATURE_REACHABLE_CALCULATION>{5, 13, 25, 40, 57}[n-1]);  // 合ってる？
-            features.push(offset::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_N_STEPS[n-1] + n_exclusively_reachable_positions_within_n_steps);
+            ASSERT_RANGE(
+                n_exclusively_reachable_positions_within_n_steps,
+                MIN[(Features)(n - 1 + (int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_1_STEP)],
+                MAX[(Features)(n - 1 + (int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_1_STEP)] + 1
+            );
+            features.push(OFFSET[(Features)(n - 1 + (int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_1_STEP)] + n_exclusively_reachable_positions_within_n_steps);
         }
     }
 
@@ -834,18 +1014,17 @@ void ExtractFeatures(
     auto n_occupied_positions = 0;
     for(int i=0; i<4; i++){
         if(geese[i].size() == 0) continue;
-        n_aliving_geese++
+        n_aliving_geese++;
         n_occupied_positions += geese[i].size();
     }
-    ASSERT_RANGE(n_aliving_geese, 2, 5);
-    condition_features.push(offset::N_ALIVING_GEESE + n_aliving_geese);
-    ASSERT_RANGE(n_occupied_positions, 2, 78);
-    condition_features.push(offset::N_OCCUPIED_POSITIONS + n_occupied_positions);
+    ASSERT_RANGE(n_aliving_geese, MIN[Features::N_ALIVING_GEESE], MAX[Features::N_ALIVING_GEESE] + 1);
+    condition_features.push(OFFSET[Features::N_ALIVING_GEESE] + n_aliving_geese);
+    ASSERT_RANGE(n_occupied_positions, MIN[Features::N_OCCUPIED_POSITIONS], MAX[Features::N_OCCUPIED_POSITIONS] + 1);
+    condition_features.push(OFFSET[Features::N_OCCUPIED_POSITIONS] + n_occupied_positions);
     
     // ステップ
-    ASSERT_RANGE(info.step, 0, 199);
-    condition_features.push(offset::STEP + info.step);
-    
+    ASSERT_RANGE(info.step, MIN[Features::STEP], MAX[Features::STEP] + 1);
+    condition_features.push(OFFSET[Features::STEP] + info.step);
 }
 }  // namespace feature
 
@@ -861,7 +1040,7 @@ struct Evaluator{
         // モデルへの入出力用変数
         static auto agent_features = array<Stack<int, 100>, 4>();
         static auto condition_features = Stack<int, 100>();
-        static auto output = Matrix<float, 4, 5>()
+        static auto output = Matrix<float, 4, 5>();
         
         feature::ExtractFeatures(geese, foods, occupied_bitboard, agent_features, condition_features);
         model.Forward(agent_features, agent_features, output);
