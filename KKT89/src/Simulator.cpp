@@ -256,16 +256,22 @@ void Simulator::run() {
         if (available_positions.size() < needed_food) {
             needed_food = available_positions.size();
         }
+        int used_food = -1;
         if (stage.mFoods[0].isEaten() and needed_food > 0) {
             int id = rand.randTerm(available_positions.size());
             id = available_positions[id];
             nextstage.mFoods[0] = Food(Point(id));
             nextstage.mBoard[nextstage.mFoods[0].pos().id] = 1;
             --needed_food;
+            used_food = id;
         }
         if (stage.mFoods[1].isEaten() and needed_food > 0) {
             int id = rand.randTerm(available_positions.size());
             id = available_positions[id];
+            while (id == used_food) {
+                id = rand.randTerm(available_positions.size());
+                id = available_positions[id];
+            }
             nextstage.mFoods[1] = Food(Point(id));
             nextstage.mBoard[nextstage.mFoods[1].pos().id] = 1;
             --needed_food;
