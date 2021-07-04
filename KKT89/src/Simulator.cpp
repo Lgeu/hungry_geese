@@ -46,6 +46,9 @@ void Simulator::run() {
 
         // 終了判定
         if (stage.isEnd()) {
+            for (int j = 0; j < 4; ++j) {
+                stage.mGeese[j].setIsSurvive(false);
+            }
             break;
         }
 
@@ -154,11 +157,11 @@ void Simulator::run() {
 
             // 食べ物を食べたかどうか
             bool eatFood = false;
-            if (stage.mFoods[0].pos() == nextHead) {
+            if (stage.mFoods[0].pos() == nextHead and !stage.mFoods[0].isEaten()) {
                 eatFood = true;
                 stage.mFoods[0].setIsEaten(true);
             }
-            if (stage.mFoods[1].pos() == nextHead) {
+            if (stage.mFoods[1].pos() == nextHead and !stage.mFoods[1].isEaten()) {
                 eatFood = true;
                 stage.mFoods[1].setIsEaten(true);
             }
@@ -221,6 +224,7 @@ void Simulator::run() {
         }
 
         // 食べ物の補充
+        int needed_food = 0;
         for (Goose goose: nextstage.geese()) {
             if (!goose.isSurvive()) continue;
             auto items = goose.items();
@@ -233,21 +237,38 @@ void Simulator::run() {
             nextstage.mFoods[0] = stage.mFoods[0];
             nextstage.mBoard[nextstage.mFoods[0].pos().id] = 1;
         }
+        else {
+            ++needed_food;
+        }
         if (!stage.mFoods[1].isEaten()) {
             nextstage.mFoods[1] = stage.mFoods[1];
             nextstage.mBoard[nextstage.mFoods[1].pos().id] = 1;
         }
-        if (stage.mFoods[0].isEaten()) {
-            int id = rand.randTerm(77);
-            id = nextstage.randPos(id);
+        else {
+            ++needed_food;
+        }
+        Stack<int, 77> available_positions;
+        for (int j = 0; j < 77; ++j) {
+            if (nextstage.mBoard[j] == 0) {
+                available_positions.push(j);
+            }
+        }
+        if (available_positions.size() < needed_food) {
+            needed_food = available_positions.size();
+        }
+        if (stage.mFoods[0].isEaten() and needed_food > 0) {
+            int id = rand.randTerm(available_positions.size());
+            id = available_positions[id];
             nextstage.mFoods[0] = Food(Point(id));
             nextstage.mBoard[nextstage.mFoods[0].pos().id] = 1;
+            --needed_food;
         }
-        if (stage.mFoods[1].isEaten()) {
-            int id = rand.randTerm(77);
-            id = nextstage.randPos(id);
+        if (stage.mFoods[1].isEaten() and needed_food > 0) {
+            int id = rand.randTerm(available_positions.size());
+            id = available_positions[id];
             nextstage.mFoods[1] = Food(Point(id));
             nextstage.mBoard[nextstage.mFoods[1].pos().id] = 1;
+            --needed_food;
         }
 
         // Rewardの算出
@@ -332,7 +353,7 @@ void Simulator::printKif() const {
             }
             // 既に脱落している場合、-100
             if (!goose.isSurvive()) {
-                file_out << 100;
+                file_out << -100;
                 continue;
             }
             if (act[j] == Action::NORTH) {
@@ -362,9 +383,10 @@ void Simulator::printKif() const {
         }
     }
 
-    // 最終順位の出力(未実装)
+    // 最終順位の出力
     auto standing = mGame.mStanding;
     file_out << standing[0] << " " << standing[1] << " " << standing[2] << " " << standing[3] << std::endl;
+
     return;
 }
 
