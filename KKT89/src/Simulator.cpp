@@ -23,13 +23,13 @@ std::string Simulator::getDatetimeStr() const {
     s << std::setw(2) << std::setfill('0') << localTime->tm_min;
     s << std::setw(2) << std::setfill('0') << localTime->tm_sec;
     // std::stringにして値を返す
-    std::cerr << s.str() << std::endl;
     return s.str();
 }
 
 void Simulator::setKifID() {
-    std::string ID = getDatetimeStr();
-    KifID = ID;
+    std::string Date = getDatetimeStr();
+    std::string Seed = std::to_string(rand.x);
+    KifID = Date + "_" + Seed;
 }
 
 void Simulator::run() {
