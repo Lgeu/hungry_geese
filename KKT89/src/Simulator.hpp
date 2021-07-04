@@ -1,5 +1,6 @@
 #pragma once
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <fstream>
 #include "Random.hpp"
@@ -14,8 +15,10 @@ struct Simulator {
 
     // ゲームのSEED値を変更
     void changeSeed(uint aX);
-    // 棋譜IDを設定(6桁)
-    void setKifID(int idx);
+    // 日付文字列を取得
+    std::string getDatetimeStr() const;
+    // 棋譜IDを設定
+    void setKifID();
 
     // ゲームの実行
     void run();
