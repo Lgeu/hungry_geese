@@ -462,15 +462,31 @@ struct BitBoard{
         }
         return res;
     }
-    BitBoard& operator&=(const BitBoard& rhs){
+    inline bool Empty() const {
+        return lo == 0ull && hi == 0ull;
+    }
+    inline BitBoard& operator&=(const BitBoard& rhs){
         lo &= rhs.lo;
         hi &= rhs.hi;
         return *this;
     }
-    BitBoard& operator|=(const BitBoard& rhs){
+    inline BitBoard& operator|=(const BitBoard& rhs){
         lo |= rhs.lo;
         hi &= rhs.hi;
         return *this;
+    }
+    inline BitBoard operator&(const BitBoard& rhs) const {
+        auto res = *this;
+        res &= rhs;
+        return res;
+    }
+    inline BitBoard operator|(const BitBoard& rhs) const {
+        auto res = *this;
+        res |= rhs;
+        return res;
+    }
+    bool operator[](const int& idx) const {  // 読み取り専用
+        return (bool)((idx < 55 ? lo >> idx : hi >> idx-55) & 1);
     }
 };
 
@@ -561,6 +577,7 @@ void ExtractFeatures(
     const array<Stack<int, 77>, 4>& geese,
     const array<int, 2>& foods,
     const BitBoard& occupied_bitboard,  // いずれかの geese がいる位置が 1、それ以外が 0
+    Info info,  // TODO ターン数など
     array<Stack, 4>& agent_features,    // output
     Stack& condition_features           // output
 ){
@@ -574,10 +591,52 @@ void ExtractFeatures(
     for(int i=0; i<4; i++) agent_features[i].clear();
     condition_features.clear();
     
-
+    // 前処理
     auto sorted_lengths = array<int, 4>();
     for(int i=0; i<4; i++) sorted_lengths[i] = geese[i].size();
     sort(sorted_lengths.begin(), sorted_lengths.end(), greater<>);
+
+    // future ステップ以内に到達可能な場所 (他 geese の頭が動かないと仮定)
+    auto not_occupied = BitBoard(occupied_bitboard);
+    not_occupied.Invert();
+    constexpr auto MAX_FEATURE_REACHABLE_CALCULATION = 5;
+    auto reachable_positions = array<array<BitBoard, MAX_FEATURE_REACHABLE_CALCULATION+1>, 4>()  // 各 goose の 1 ~ 5 ステップ後に到達可能な場所
+    for(int i=0; i<4; i++){
+        if (geese[i].size() == 0) continue;
+        reachable_positions[i][0].Flip(geese[i].front());
+    }
+    for(int future=1, clearing_count=1; future<=MAX_FEATURE_REACHABLE_CALCULATION; future++, clearing_count++){
+        // 短くなる処理
+        for(int i=0; i<4; i++){
+            auto geese_i_clearing_idx = geese[i].size() - clearing_count;
+            if(geese_i_clearing_idx < 0) continue;
+            const auto& idx = geese[i][geese_i_clearing_idx]
+            not_occupied.Flip(idx);
+            ASSERT(not_occupied[idx], "しっぽを消そうと思ったらしっぽが無かったよ");
+        }
+        // もう一回短くなる
+        if((info.current_step + future) % 40 == 0){  // この条件合ってる？要確認
+            clearing_count++;
+            for(int i=0; i<4; i++){
+                auto geese_i_clearing_idx = geese[i].size() - clearing_count;
+                if(geese_i_clearing_idx < 0) continue;
+                const auto& idx = geese[i][geese_i_clearing_idx]
+                not_occupied.Flip(idx);
+                ASSERT(not_occupied[idx], "しっぽを消そうと思ったらしっぽが無かったよ");
+            }
+        }
+        for(int i=0; i<4; i++){
+            if (geese[i].size() == 0) continue;
+            const auto& prev_reachable_positions = reachable_positions[i][future-1];
+            auto&       next_reachable_positions = reachable_positions[i][future];
+            next_reachable_positions = prev_reachable_positions;
+            auto tmp = prev_reachable_positions;  tmp.ShiftRight();  next_reachable_positions |= tmp;
+                 tmp = prev_reachable_positions;  tmp.ShiftLeft();   next_reachable_positions |= tmp;
+                 tmp = prev_reachable_positions;  tmp.ShiftDown();   next_reachable_positions |= tmp;
+                 tmp = prev_reachable_positions;  tmp.ShiftUp();     next_reachable_positions |= tmp;
+            next_reachable_positions &= not_occupied;
+        }
+    }
 
     // 各エージェント視点の特徴量
     for(int idx_agents=0; idx_agents<4; idx_agents++){
@@ -632,6 +691,17 @@ void ExtractFeatures(
             const auto relative_opponent_head = CalcRelativePosition(head, opponent_head);
             ASSERT_RANGE(relative_opponent_head, 1, 77);
             features.push(offset::RELATIVE_POSITION_OPPONENT_HEAD + relative_opponent_head);
+
+            const auto relative_opponent_head_from_tail =  CalcRelativePosition(tail, opponent_head);
+            ASSERT_RANGE(relative_opponent_head_from_tail, 1, 77);
+            features.push(offset::RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL + relative_opponent_head_from_tail);
+        }
+
+        // 食べ物の位置
+        for (int idx_foods=0; idx_foods<foods.size(); idx_foods++){
+            const auto relative_food = CalcRelativePosition(head, foods[idx_foods]);
+            ASSERT_RANGE(relative_food, 1, 77);
+            features.push(offset::RELATIVE_POSITION_FOOD + relative_food);
         }
 
         // 行動履歴
@@ -692,45 +762,37 @@ void ExtractFeatures(
         features.push(offset::RELATIVE_POSITION_TAIL_ON_PLANE_X + relative_tail_on_plane_x);
         features.push(offset::RELATIVE_POSITION_TAIL_ON_PLANE_Y + relative_tail_on_plane_y);
 
-        // n ステップ以内に到達可能な場所の数
-        auto reachable_positions = BitBoard(head);
-        auto not_occupied = BitBoard(occupied_bitboard);
-        not_occupied.Invert();
-        for(int n=0; n<5; n++){
-            auto r = reachable_positions;  r.ShiftRight();
-            auto l = reachable_positions;  l.ShiftLeft();
-            auto d = reachable_positions;  d.ShiftDown();
-            auto u = reachable_positions;  u.ShiftUp();
-            reachable_positions |= r;
-            reachable_positions |= l;
-            reachable_positions |= d;
-            reachable_positions |= u;
-            for(int i=0; i<4; i++){
-                
-            }
-            not_occupied = 
+        // n ステップ以内に到達可能な場所の数 (他 geese の頭が動かないと仮定)
+        for(int n=1; n<=MAX_FEATURE_REACHABLE_CALCULATION; n++){
+            auto n_reachable_positions_within_n_steps = reachable_positions[idx_agents][n].Popcount();
+            ASSERT_RANGE(n_reachable_positions_within_n_steps, 1, array<int, MAX_FEATURE_REACHABLE_CALCULATION>{5, 13, 25, 40, 57}[n-1]);  // これも合ってるか？？
+            features.push(offset::N_REACHABLE_POSITIONS_WITHIN_N_STEPS[n-1] + n_reachable_positions_within_n_steps);
         }
 
+        // n ステップ以内に到達可能な場所が被ってる敵の数
+        for(int n=1; n<=MAX_FEATURE_REACHABLE_CALCULATION; n++){
+            auto n_opponents_sharing_reachable_positions_within_n_steps = 0;
+            for(int i=0; i<4; i++){
+                if (i == idx_agents || geese[i].size() == 0) continue;
+                n_opponents_sharing_reachable_positions_within_n_steps += (int)!(reachable_positions[idx_agents][n] & reachable_positions[i][n]).Empty();
+            }
+            ASSERT_RANGE(n_opponents_sharing_reachable_positions_within_n_steps, 0, 4);
+            features.push(offset::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_N_STEPS[n-1] + n_opponents_sharing_reachable_positions_within_n_steps);
+        }
 
+        // n ステップ以内に自分だけが到達可能な場所の数
+        for(int n=1; n<=MAX_FEATURE_REACHABLE_CALCULATION; n++){
+            auto not_opponents_reachable = BitBoard();
+            for(int i=0; i<4; i++){
+                if (i == idx_agents || geese[i].size() == 0) continue;
+                not_opponents_reachable |= reachable_positions[i][n];
+            }
+            not_opponents_reachable.Invert();
+            auto n_exclusively_reachable_positions_within_n_steps = (reachable_positions[idx_agents][n] & not_opponents_reachable).Popcount();
+            ASSERT_RANGE(n_exclusively_reachable_positions_within_n_steps, 0, array<int, MAX_FEATURE_REACHABLE_CALCULATION>{5, 13, 25, 40, 57}[n-1]);  // 合ってる？
+            features.push(offset::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_N_STEPS[n-1] + n_exclusively_reachable_positions_within_n_steps);
+        }
 
-
-    ("N_REACHABLE_POSITIONS_WITHIN_1_STEP", 5),
-    ("N_REACHABLE_POSITIONS_WITHIN_2_STEPS", 13),
-    ("N_REACHABLE_POSITIONS_WITHIN_3_STEPS", 25),
-    ("N_REACHABLE_POSITIONS_WITHIN_4_STEPS", 40),
-    ("N_REACHABLE_POSITIONS_WITHIN_5_STEPS", 57),
-    ("N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_1_STEP", 4),
-    ("N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_2_STEPS", 4),
-    ("N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_3_STEPS", 4),
-    ("N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_4_STEPS", 4),
-    ("N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_5_STEPS", 4),
-    ("N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_1_STEP", 5),
-    ("N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_2_STEPS", 13),
-    ("N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_3_STEPS", 25),
-    ("N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_4_STEPS", 40),
-    ("N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_5_STEPS", 57),
-    ("RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL", 77),
-    ("RELATIVE_POSITION_FOOD", 77),
 
 
 
