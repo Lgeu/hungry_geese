@@ -3,9 +3,12 @@
 
 namespace hungry_geese {
 
-Stage::Stage() : mGeese(), mFoods(), mBoard() {
+Stage::Stage() : mTurn(), mGeese(), mFoods(), mBoard() {
 	for (int i = 0; i < 77; ++i) {
 		mBoard[i] = 0;
+	}
+	for (int i = 0; i < 4; ++i) {
+		mLastActions[i] = hungry_geese::Action::NONE;
 	}
 }
 

@@ -8,6 +8,9 @@ Game::Game() : mTurn(0), mStages() {
 		mRewards[i] = 0;
 		mStanding[i] = 1;
 	}
+	for (int i = 0; i < 200; ++i) {
+		mStages[i].mTurn = i;
+	}
 }
 
 int Game::turn() const {

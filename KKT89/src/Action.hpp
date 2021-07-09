@@ -8,6 +8,7 @@ enum class Action {
     EAST,
     SOUTH,
     WEST,
+    NONE,
 };
 
 }

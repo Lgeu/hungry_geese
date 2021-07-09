@@ -6,6 +6,7 @@
 #include "Random.hpp"
 #include "Game.hpp"
 #include "Parameter.hpp"
+#include "Agent.hpp"
 
 namespace hungry_geese {
     
@@ -28,6 +29,8 @@ struct Simulator {
 
     // ゲーム全体
     Game mGame;
+    // Agent
+    Agent mAgent;
 
     // 乱数
     Random rand;

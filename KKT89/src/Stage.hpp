@@ -38,6 +38,8 @@ struct Stage {
     int randPos(int aId) const;
 
 	// メンバ変数
+    // 現在のターン数
+    int mTurn;
     // Gooseの配列
     Geese mGeese;
     // 食べ物の配列
@@ -46,6 +48,8 @@ struct Stage {
     Board mBoard;
     // 行動の配列
     Actions mActions;
+    // 前ターンの行動の配列
+    Actions mLastActions;
 };
 
 }

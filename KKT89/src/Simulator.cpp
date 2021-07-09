@@ -96,7 +96,8 @@ void Simulator::run() {
             }
         }
 
-        // 探索(未実装！！！！！！！)
+        // 探索
+        mAgent.setActions(stage);
 
         // 着手
         auto geese = stage.geese();
@@ -116,11 +117,10 @@ void Simulator::run() {
             auto head = items[0];
             int x = head.x, y = head.y;
             if (act[j] == Action::NORTH) {
-                if (i > 0) {
-                    if (mGame.mStages[i-1].actions()[j] == Action::SOUTH) {
-                        nextstage.mGeese[j].setIsSurvive(false);
-                        continue;
-                    }
+                nextstage.mLastActions[j] = Action::NORTH;
+                if (stage.mLastActions[j] == Action::SOUTH) {
+                    nextstage.mGeese[j].setIsSurvive(false);
+                    continue;
                 }
                 --x;
                 if (x < 0) {
@@ -128,11 +128,10 @@ void Simulator::run() {
                 }
             }
             else if (act[j] == Action::EAST) {
-                if (i > 0) {
-                    if (mGame.mStages[i-1].actions()[j] == Action::WEST) {
-                        nextstage.mGeese[j].setIsSurvive(false);
-                        continue;
-                    }
+                nextstage.mLastActions[j] = Action::EAST;
+                if (stage.mLastActions[j] == Action::WEST) {
+                    nextstage.mGeese[j].setIsSurvive(false);
+                    continue;
                 }
                 ++y;
                 if (y >= Parameter::columns) {
@@ -140,11 +139,10 @@ void Simulator::run() {
                 }
             }
             else if (act[j] == Action::SOUTH) {
-                if (i > 0) {
-                    if (mGame.mStages[i-1].actions()[j] == Action::NORTH) {
-                        nextstage.mGeese[j].setIsSurvive(false);
-                        continue;
-                    }
+                nextstage.mLastActions[j] = Action::SOUTH;
+                if (stage.mLastActions[j] == Action::NORTH) {
+                    nextstage.mGeese[j].setIsSurvive(false);
+                    continue;
                 }
                 ++x;
                 if (x >= Parameter::rows) {
@@ -152,11 +150,10 @@ void Simulator::run() {
                 }
             }
             else if (act[j] == Action::WEST) {
-                if (i > 0) {
-                    if (mGame.mStages[i-1].actions()[j] == Action::EAST) {
-                        nextstage.mGeese[j].setIsSurvive(false);
-                        continue;
-                    }
+                nextstage.mLastActions[j] = Action::WEST;
+                if (stage.mLastActions[j] == Action::EAST) {
+                    nextstage.mGeese[j].setIsSurvive(false);
+                    continue;
                 }
                 --y;
                 if (y < 0) {

@@ -7,3 +7,4 @@
 #include "src/Game.cpp"
 #include "src/Goose.cpp"
 #include "src/Stage.cpp"
+#include "src/Agent.cpp"
