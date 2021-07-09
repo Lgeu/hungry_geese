@@ -15,7 +15,7 @@ struct Timer {
 
     // 問い合わせ
     // 経過秒数を取得
-    double elapsedSec() const;
+    float elapsedSec() const;
 
     // メンバ変数
     // 開始時間

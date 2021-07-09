@@ -4,6 +4,7 @@
 #include "Goose.hpp"
 #include "Parameter.hpp"
 #include "Action.hpp"
+#include "AgentResult.hpp"
 
 namespace hungry_geese {
 
@@ -50,6 +51,10 @@ struct Stage {
     Actions mActions;
     // 前ターンの行動の配列
     Actions mLastActions;
+    // Agentの残り時間
+    std::array<float, 4> mRemainingTime;
+    // Agentの評価値
+    std::array<AgentResult, 4> mAgentResult;
 };
 
 }

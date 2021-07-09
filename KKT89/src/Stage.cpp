@@ -3,7 +3,7 @@
 
 namespace hungry_geese {
 
-Stage::Stage() : mTurn(), mGeese(), mFoods(), mBoard() {
+Stage::Stage() : mTurn(), mGeese(), mFoods(), mBoard(), mRemainingTime(), mAgentResult() {
 	for (int i = 0; i < 77; ++i) {
 		mBoard[i] = 0;
 	}

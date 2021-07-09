@@ -7,6 +7,7 @@
 #include "Game.hpp"
 #include "Parameter.hpp"
 #include "Agent.hpp"
+#include "Timer.hpp"
 
 namespace hungry_geese {
     
@@ -31,6 +32,8 @@ struct Simulator {
     Game mGame;
     // Agent
     Agent mAgent;
+    // タイマー
+    Timer mTimer;
 
     // 乱数
     Random rand;

@@ -3,7 +3,7 @@
 
 namespace hungry_geese {
     
-Simulator::Simulator() : mGame() {
+Simulator::Simulator() : mGame(), mAgent(), mTimer() {
     rand = Random(0);
 }
 
@@ -49,6 +49,10 @@ void Simulator::run() {
         id = stage0.randPos(id);
         stage0.mFoods[i] = Food(Point(id));
         stage0.mBoard[id] = 1;
+    }
+    // 残り時間
+    for (int i = 0; i < 4; ++i) {
+        stage0.mRemainingTime[i] = Parameter::remainingOverageTime;
     }
 
     // ゲーム終了までターンを進行させる
@@ -97,7 +101,24 @@ void Simulator::run() {
         }
 
         // 探索
-        mAgent.setActions(stage);
+        for (int j = 0; j < 4; ++j){
+            if (!stage.geese()[j].isSurvive()) {
+                continue;
+            }
+            mTimer.start();
+            mAgent.setActions(stage);
+            mTimer.stop();
+
+            // 残り時間の計算
+            if (i > 0) {
+                stage.mRemainingTime[j] = mGame.mStages[i-1].mRemainingTime[j];
+            }
+            float get_time = mTimer.elapsedSec();
+            get_time = 1.0 - get_time;
+            if (get_time < 0) {
+                stage.mRemainingTime[j] -= get_time;
+            }
+        }
 
         // 着手
         auto geese = stage.geese();
@@ -337,8 +358,19 @@ void Simulator::printKif() const {
         // ステップ数
         file_out << step << std::endl;
 
-        // エージェントの残り時間(未実装)
-        file_out << -100 << " " << -100 << " " << -100 << " " << -100 << std::endl;
+        // エージェントの残り時間
+        for (int i = 0; i < 4; ++i) {
+            if (i > 0) {
+                file_out << " ";
+            }
+            if (!stage.geese()[i].isSurvive()) {
+                file_out << -100;
+            }
+            else {
+                file_out << stage.mRemainingTime[i];
+            }
+        }
+        file_out << std::endl;
 
         // エージェントの位置
         for (Goose goose: stage.geese()) {
@@ -386,13 +418,24 @@ void Simulator::printKif() const {
         }
         file_out << std::endl;
 
-        // 評価値(未実装！！！！！！)
-        for (Goose goose: stage.geese()) {
-            // 盤面評価値(3種類)
-            file_out << -100 << " " << -100 << " " << -100;
-            // 手の評価値
+        // 評価値
+        for (int i = 0; i < 4; ++i){
+            auto AgentResult = stage.mAgentResult[i];
+            // 盤面評価値
+            file_out << AgentResult.mValue << std::endl;
             for (int j = 0; j < 4; ++j) {
-                file_out << " " << -100;
+                if (j > 0) {
+                    file_out << " ";
+                }
+                file_out << AgentResult.mPolicy[j];
+            }
+            file_out << std::endl;
+            // 特徴量ベクトル
+            for (int j = 0; j < AgentResult.mFeatures.size(); ++j) {
+                if (j > 0) {
+                    file_out << " ";
+                }
+                file_out << AgentResult.mFeatures[j];
             }
             file_out << std::endl;
         }

@@ -1,5 +1,3 @@
-#include "src/Simulator.cpp"
-#include "src/Main.cpp"
 #include "src/Random.cpp"
 #include "src/Point.cpp"
 #include "src/Food.cpp"
@@ -8,3 +6,6 @@
 #include "src/Goose.cpp"
 #include "src/Stage.cpp"
 #include "src/Agent.cpp"
+#include "src/AgentResult.cpp"
+#include "src/Simulator.cpp"
+#include "src/Main.cpp"

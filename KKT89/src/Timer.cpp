@@ -14,8 +14,8 @@ void Timer::stop() {
     mTimeEnd = ::std::clock();
 }
 
-double Timer::elapsedSec() const {
-    return static_cast<double>(mTimeEnd - mTimeBegin) / CLOCKS_PER_SEC;
+float Timer::elapsedSec() const {
+    return static_cast<float>(mTimeEnd - mTimeBegin) / CLOCKS_PER_SEC;
 }
 
 }
