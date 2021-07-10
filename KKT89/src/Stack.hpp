@@ -89,19 +89,19 @@ struct Stack {
         return (const T*)data.data() + right;
     }
     inline T& front() {
-        ASSERT_MSG(right > 0, "no data.");
+        ASSERT(right > 0, "no data.");
         return data[0];
     }
     const inline T& front() const {
-        ASSERT_MSG(right > 0, "no data.");
+        ASSERT(right > 0, "no data.");
         return data[0];
     }
     inline T& back() {
-        ASSERT_MSG(right > 0, "no data.");
+        ASSERT(right > 0, "no data.");
         return data[right - 1];
     }
     const inline T& back() const {
-        ASSERT_MSG(right > 0, "no data.");
+        ASSERT(right > 0, "no data.");
         return data[right - 1];
     }
 };
