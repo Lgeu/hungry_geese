@@ -9,7 +9,7 @@ struct AgentResult {
 	AgentResult();
 	
 	// 取る行動
-	Action mAction; 
+	int mAction; 
 	// 盤面評価値
 	float mValue;
 	// 手の評価

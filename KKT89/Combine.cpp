@@ -7,5 +7,6 @@
 #include "src/Stage.cpp"
 #include "src/Agent.cpp"
 #include "src/AgentResult.cpp"
+#include "src/GreedyAgent.cpp"
 #include "src/Simulator.cpp"
 #include "src/Main.cpp"

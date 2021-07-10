@@ -105,8 +105,9 @@ void Simulator::run() {
             if (!stage.geese()[j].isSurvive()) {
                 continue;
             }
+
             mTimer.start();
-            mAgent.setActions(stage);
+            mAgent.setActions(stage, j);
             mTimer.stop();
 
             // 残り時間の計算
