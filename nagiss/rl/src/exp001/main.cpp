@@ -592,10 +592,6 @@ namespace test{
 
 
 namespace feature{
-namespace offset{
-    auto HOGE = 123;
-}
-
 
 enum struct Features {
     NEIGHBOR_UP_7,
@@ -1056,5 +1052,3 @@ int main(){
     //test::CheckTorusConv2d();
     //test::CheckGeeseNetTime();
 }
-
-// 12 近傍、pext 命令と長さ 2^12 の配列でなんとかなるっぽい
