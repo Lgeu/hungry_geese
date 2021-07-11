@@ -3,7 +3,7 @@
 
 namespace hungry_geese {
 
-Agent::Agent() {}
+Agent::Agent() : Agent0(), Agent1(), Agent2(), Agent3() {}
 
 void Agent::setActions(Stage& aStage, int aIndex) {
 	if (aIndex == 0) {

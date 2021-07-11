@@ -1,6 +1,7 @@
 #pragma once
 #include "Stage.hpp"
 #include "GreedyAgent.hpp"
+#include "MctsAgent.hpp"
 
 namespace hungry_geese {
 
@@ -12,7 +13,7 @@ struct Agent {
 	void setActions(Stage& aStage, int aIndex);
 
 	// エージェント
-	GreedyAgent Agent0;
+	MctsAgent Agent0;
 	GreedyAgent Agent1;
 	GreedyAgent Agent2;
 	GreedyAgent Agent3;

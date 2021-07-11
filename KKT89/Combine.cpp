@@ -1,3 +1,4 @@
+#include "src/MctsAgent.cpp"
 #include "src/Random.cpp"
 #include "src/Point.cpp"
 #include "src/Food.cpp"
