@@ -319,52 +319,58 @@ template<int in_dim, int out_dim = 5, int hidden_1 = 256, int hidden_2 = 32>
 struct Model {
     // TODO: Embed を 1 つに統一
     EmbeddingBag<in_dim, hidden_1> embed;
-    EmbeddingBag<in_dim, hidden_1> embed_condition;
     Linear<hidden_1, hidden_2> linear_condition;
     Linear<hidden_1, hidden_2> linear_2;
     Linear<hidden_2, hidden_2> linear_3;
     Linear<hidden_2, out_dim> linear_4;
 
     // コンストラクタ
-    Model() : embed(), embed_condition(), linear_condition(), linear_2(), linear_3(), linear_4() {}
+    Model() : embed(), linear_condition(), linear_2(), linear_3(), linear_4() {}
 
     template<class Vector1, class Vector2>  // Stack<int, n> とか
     void Forward(const array<Vector1, 4>& agent_features, const Vector2& condition_features, Matrix<float, 4, out_dim>& output) {
+        // (1)
         static auto agent_embedded = Matrix<float, 4, hidden_1>();
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             embed.Forward(agent_features[idx_agents], agent_embedded[idx_agents]);
         }
         F::Relu_(agent_embedded);
 
+        // (2)
         static auto condition_embedded = array<float, hidden_1>();
-        embed_condition.Forward(condition_features, condition_embedded);
+        embed.Forward(condition_features, condition_embedded);
         F::Relu_(condition_embedded);
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             for (int dim = 0; dim < hidden_1; dim++) {
                 condition_embedded[dim] += agent_embedded[idx_agents][dim];  // Vector 構造体を作るべきだった感
             }
         }
+
+        // (3)
         static auto condition_hidden = array<float, hidden_2>();
         linear_condition.Forward(condition_embedded, condition_hidden);
         F::Relu_(condition_hidden);
 
+        // (4)
         static auto hidden_state_2 = Matrix<float, 4, hidden_2>();
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             linear_2.Forward(agent_embedded[idx_agents], hidden_state_2[idx_agents]);
         }
+        F::Relu_(hidden_state_2);
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             for (int dim = 0; dim < hidden_2; dim++) {
                 hidden_state_2[idx_agents][dim] += condition_hidden[dim];
             }
         }
-        F::Relu_(hidden_state_2);
 
+        // (5)
         static auto hidden_state_3 = Matrix<float, 4, hidden_2>();
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             linear_3.Forward(hidden_state_2[idx_agents], hidden_state_3[idx_agents]);
         }
         F::Relu_(hidden_state_3);
 
+        // (6)
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             linear_4.Forward(hidden_state_3[idx_agents], output[idx_agents]);
         }

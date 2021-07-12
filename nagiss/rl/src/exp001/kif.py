@@ -30,11 +30,9 @@ class Kif:
                 entries = {k: v for k, v in entries.items() if k != "items"}
                 dict.__init__(self, entries)
                 self.__dict__.update(entries)
-
             def __setattr__(self, attr, value):
                 self.__dict__[attr] = value
                 self[attr] = value
-
         res = []
         for step in self.steps:
             agents = [Struct() for _ in range(4)]
@@ -180,6 +178,9 @@ def test_kif_read(file="./KKT89/src/out/20210712175538_1926312680.kif1"):
             print(f"- agent {idx_agent}")
             for f in features:
                 print("  -", interpret_feature(f))
+        print("- condition")
+        for f in step.condition_features:
+            print("  -", interpret_feature(f))
 
 
 if __name__ == "__main__":

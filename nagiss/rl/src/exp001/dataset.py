@@ -37,12 +37,12 @@ class Dataset(torch.utils.data.Dataset):
 # 元のモデルは頭と尻尾の関係をうまく捉えられないのでは？
 
 class Model(nn.Module):
-    def __init__(self, agent_features, condition_features, out_dim=5, hidden_1=256, hidden_2=32):
+    def __init__(self, features, out_dim=5, hidden_1=256, hidden_2=32):
         super().__init__()
-        # TODO: EmbeddingBag に書き換える
-        # TODO: Embedの初期化を小さめの値にする
-        self.embed = nn.Embedding(agent_features, hidden_1, padding_idx=-100)
-        self.embed_condition = nn.Embedding(condition_features, hidden_1, padding_idx=-100)
+        self.hidden_1 = hidden_1
+        self.hidden_2 = hidden_2
+        self.embed = nn.EmbeddingBag(features, hidden_1, mode="sum", padding_idx=-100)
+        self.embed.weight.data /= 8.0  # 小さめの値で初期化
         self.linear_condition = nn.Linear(hidden_1, hidden_2)
         self.linear_2 = nn.Linear(hidden_1, hidden_2)
         self.linear_3 = nn.Linear(hidden_2, hidden_2)
@@ -57,28 +57,26 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: (batch, 4, out_dim)
         """
-        # [batch, 4, length] -> [batch, 4, length, 256]
-        x = self.embed(x)
-        # [batch, 4, length, 256] -> [batch, 4, 256]
-        x = F.relu_(x.sum(2))
+        batch_size = x.shape[0]
 
-        # [batch, length] -> [batch, length, 256]
-        condition = self.embed_condition(condition)
-        # [batch, length, 256] -> [batch, 256]
-        condition = F.relu_(condition.sum(1))
+        # (1) [batch, 4, length] -> [batch, 4, 256]
+        x = F.relu_(self.embed(x.view(batch_size * 4, -1)).view(batch_size, 4, self.hidden_1))
+
+        # (2) [batch, length] -> [batch, 256]
+        condition = F.relu_(self.embed(condition))
         condition += x.sum(1)
-        # [batch, 256] -> [batch, 32]
+
+        # (3) [batch, 256] -> [batch, 32]
         condition = F.relu_(self.linear_condition(condition))
 
-        # [batch, 4, 256] -> [batch, 4, 32]
-        x = self.linear_2(x)
+        # (4) [batch, 4, 256] -> [batch, 4, 32]
+        x = F.relu_(self.linear_2(x))
         x += condition.unsqueeze(1)
-        x = F.relu_(x)
 
-        # [batch, 4, 32] -> [batch, 4, 32]
+        # (5) [batch, 4, 32] -> [batch, 4, 32]
         x = F.relu_(self.linear_3(x))
 
-        # [batch, 4, 32] -> [batch, 4, out_dim]
+        # (6) [batch, 4, 32] -> [batch, 4, out_dim]
         x = self.linear_4(x)
 
         return x
