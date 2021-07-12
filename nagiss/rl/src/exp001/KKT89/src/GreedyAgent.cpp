@@ -1103,6 +1103,129 @@ struct Evaluator {
 }// namespace evaluation_function
 
 
+namespace tree_search {
+using namespace std;
+struct Duct {
+    constexpr static int BIG = 100000;
+
+    struct Node {
+        State state;
+        array<array<float, 4>, 4> policy;  // 各エージェントの方策
+        array<array<float, 4>, 4> worth;   // 各エージェント視点の各手の価値
+        int n;                             // このノードで行動を起こした回数 (= 到達回数 - 1)
+        int n_children;                    // 子ノードの数
+        int children_offset;               // 子ノード
+        int node_type;                     // エージェントのノード (0) か、食べ物のノード (1) か
+
+        Node(){}
+
+        Node(const State& arg_state, Stack<Node*, BIG>& children_buffer) : state(arg_state), policy(), worth(), n(0), children_offset(), node_type(0) {
+            policy[0][0] = -100.0;
+
+            n_children = 子ノードの数を数える処理();
+            children_offset = children_buffer.size();
+            children_buffer.resize(children_buffer.size() + n_children);
+
+            if (state.foods[0] == -1 || state.foods[1] == -1) node_type = 1;
+        }
+
+        bool Expanded() const {  // 既にモデルによって評価されているかを返す
+            return policy[0][0] != -100.0;
+        }
+
+        int ChooseMove() {  // 例の式を使って (食べ物のノードの場合はランダムに) 手を選ぶ  // 手の全パターンをひとつの値で表す。全員が 3 方向に移動できるなら 0 から 80 までの値をとる。Move メソッドで具体的な手に変換できる
+
+        }
+
+        int Move(const int& idx_move, const int& idx_agent) {  // idx_move に対応する idx_agent 番目のエージェントの手を返す
+            ASSERT_RANGE(idx_move, 0, n_children);
+        }
+
+        Node& KthChildren(Stack<Node, BIG>& node_buffer, Stack<Node*, BIG>& children_buffer, const int& k) {  // k 番目の行動によって遷移する子ノードを返す  // その子ノードが初めて遷移するものだった場合、新たに領域を確保してノードを作る
+            ASSERT_RANGE(k, 0, n_children);
+            Node* child = children_buffer[children_offset + k];
+            if (child == nullptr) {
+                // 領域を確保
+                node_buffer.emplace(state.NextState(k));
+                child = children_buffer[children_offset + k] = &node_buffer.back();
+            }
+            return *child;
+        }
+
+        float Evaluate() {
+            if (state.Finished()) {  // 決着がついた
+                return state.Score();
+            }
+            if (n == 1) {
+
+            }
+        }
+
+    };
+
+
+    Stack<Node, BIG> node_buffer;  // スタック領域に持ちたくない…
+    Stack<Node*, BIG> children_buffer;
+    array<int, BIG> move_buffer;
+    Model model;
+
+    Duct(const State& arg_state) {
+        node_buffer[0] = Node(arg_state);
+        for (auto&& c : children_buffer) c = nullptr;
+    }
+
+    void Search() {
+        while (true) {
+            Iterate();
+        }
+    }
+
+    Node& RootNode() {
+        return node_buffer[0];
+    }
+
+    void Iterate() {
+        // 根から葉に移動
+        Node* v = &RootNode();
+        Stack<int, 100> path;
+        while (v->Expanded() || v->node_type == 1) {  // 展開されていない、エージェントのノードに到達したら抜ける
+            int move_idx = v->ChooseMove();
+            path.push(move_idx);
+            v = &v->KthChildren(node_buffer, children_buffer, move_idx);
+            if (v->state.Finished()) {  // 終局状態
+                break;
+            }
+        }
+
+        // 葉ノードの処理
+        array<float, 4> value;
+        if (v->state.Finished()) {
+            // 決着がついた場合、順位に応じて value を設定
+            value = v->state.Scores();
+        }
+        else {
+            // 未探索のノードに到達した場合、評価関数を呼ぶ
+            Node* leaf = v;
+            const auto policy_value = model.Predict(leaf->state);  // struct{ array<array<float, 4>, 4> policy; array<float, 4> value; }
+            const array<array<float, 4>, 4>& policy = policy_value.policy;
+            value = policy_value.value;
+            leaf->policy = policy_value.policy;
+        }
+
+        // 葉での評価結果を経路のノードに反映
+        v = &RootNode();
+        for (const auto& move_idx : path) {
+            for (int idx_agent = 0; idx_agent < 4; idx_agent++) {
+                v->worth[idx_agent][v->Move(move_idx, idx_agent)] += value[idx_agent];
+                v->n++;
+            }
+            v = &v->KthChildren(node_buffer, children_buffer, move_idx);
+        }
+
+    }
+
+};
+}
 
 GreedyAgent::GreedyAgent() {}
 
