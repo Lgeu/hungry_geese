@@ -392,7 +392,7 @@ struct BitBoard {
         }
         for (int y = 0; y < 2; y++) {
             for (int x = 0; x < 11; x++) {
-                cout << ((hi >> y * 11 + x + 55) & 1);
+                cout << ((hi >> y * 11 + x) & 1);
             }
             cout << endl;
         }
@@ -675,14 +675,14 @@ struct Min {
         data[(int)Features::MOVE_HISTORY] = 0;
         data[(int)Features::RELATIVE_POSITION_TAIL_ON_PLANE_X] = 30;
         data[(int)Features::RELATIVE_POSITION_TAIL_ON_PLANE_Y] = 30;
-        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_1_STEP] = 1;
-        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_2_STEPS] = 1;
-        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_3_STEPS] = 1;
-        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_4_STEPS] = 1;
-        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_5_STEPS] = 1;
-        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_6_STEPS] = 1;
-        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_7_STEPS] = 1;
-        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_8_STEPS] = 1;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_1_STEP] = 0;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_2_STEPS] = 0;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_3_STEPS] = 0;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_4_STEPS] = 0;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_5_STEPS] = 0;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_6_STEPS] = 0;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_7_STEPS] = 0;
+        data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_8_STEPS] = 0;
         data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_1_STEP] = 0;
         data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_2_STEPS] = 0;
         data[(int)Features::N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_3_STEPS] = 0;
@@ -815,7 +815,7 @@ void ExtractFeatures(
     for (int i = 0; i < 4; i++) sorted_lengths[i] = geese[i].size();
     sort(sorted_lengths.begin(), sorted_lengths.end(), greater<>());
 
-    // 前処理: future ステップ以内に到達可能な場所 (他 geese の頭が動かないと仮定)
+    // 前処理: future ステップ以内に到達可能な場所 (他 geese の頭が動かないと仮定)  // 正しくない場合もある (長さが 1 のときなど)
     auto not_occupied = BitBoard(occupied_bitboard);
     not_occupied.Invert();
     auto reachable_positions = array<array<BitBoard, MAX_FEATURE_REACHABLE_CALCULATION + 1>, 4>();  // 各 goose の 1 ~ 8 ステップ後に到達可能な場所
@@ -823,8 +823,8 @@ void ExtractFeatures(
         if (geese[i].size() == 0) continue;
         reachable_positions[i][0].Flip(geese[i].front());
     }
-    cout << "occupied_bitboard" << endl;
-    occupied_bitboard.Print();
+    //cout << "occupied_bitboard" << endl;
+    //occupied_bitboard.Print();
     for (int future = 1, clearing_count = 1; future <= MAX_FEATURE_REACHABLE_CALCULATION; future++, clearing_count++) {
         // 短くなる処理
         for (int i = 0; i < 4; i++) {
@@ -849,11 +849,11 @@ void ExtractFeatures(
             if (geese[i].size() == 0) continue;
             const auto& prev_reachable_positions = reachable_positions[i][future - 1];
             auto& next_reachable_positions = reachable_positions[i][future];
-            next_reachable_positions = prev_reachable_positions;  if (future == 1) { cout << "prev" << endl; prev_reachable_positions.Print(); }
-            auto tmp = prev_reachable_positions;  tmp.ShiftRight();  next_reachable_positions |= tmp;  if (future == 1) { cout << "R" << endl; tmp.Print(); }
-            tmp = prev_reachable_positions;  tmp.ShiftLeft();   next_reachable_positions |= tmp;  if (future == 1) { cout << "L" << endl; tmp.Print(); }
-            tmp = prev_reachable_positions;  tmp.ShiftDown();   next_reachable_positions |= tmp;  if (future == 1) { cout << "D" << endl; tmp.Print(); }
-            tmp = prev_reachable_positions;  tmp.ShiftUp();     next_reachable_positions |= tmp;  if (future == 1) { cout << "U" << endl; tmp.Print(); }
+            next_reachable_positions = prev_reachable_positions;//  if (future == 1) { cout << "prev" << endl; prev_reachable_positions.Print(); }
+            auto tmp = prev_reachable_positions;  tmp.ShiftRight();  next_reachable_positions |= tmp;//  if (future == 1) { cout << "R" << endl; tmp.Print(); }
+            tmp = prev_reachable_positions;  tmp.ShiftLeft();   next_reachable_positions |= tmp;//  if (future == 1) { cout << "L" << endl; tmp.Print(); }
+            tmp = prev_reachable_positions;  tmp.ShiftDown();   next_reachable_positions |= tmp;//  if (future == 1) { cout << "D" << endl; tmp.Print(); }
+            tmp = prev_reachable_positions;  tmp.ShiftUp();     next_reachable_positions |= tmp;//  if (future == 1) { cout << "U" << endl; tmp.Print(); }
             next_reachable_positions &= not_occupied;
         }
     }
