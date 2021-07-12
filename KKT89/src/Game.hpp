@@ -10,25 +10,25 @@ using Stages = std::array<Stage, 200>;
 using Rewards = std::array<int, 4>;
 
 struct Game {
-	// コンストラクタ
-	Game();
+    // コンストラクタ
+    Game();
 
-	// 問い合わせ
-	// 現在のターン数
-	int turn() const;
+    // 問い合わせ
+    // 現在のターン数
+    int turn() const;
 
-	// 順位確定
-	void calc_Ranking();
+    // 順位確定
+    void calc_Ranking();
 
-	// メンバ変数
-	// 現在のターン数
-	int mTurn;
-	// ステージの配列
-	Stages mStages;
-	// rewardの配列
-	Rewards mRewards;
-	// 順位
-	std::array<int, 4> mStanding;
+    // メンバ変数
+    // 現在のターン数
+    int mTurn;
+    // ステージの配列
+    Stages mStages;
+    // rewardの配列
+    Rewards mRewards;
+    // 順位
+    std::array<int, 4> mStanding;
 };
 
 }
