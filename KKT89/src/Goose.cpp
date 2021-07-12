@@ -22,6 +22,9 @@ bool Goose::isSurvive() const {
 
 void Goose::setIsSurvive(bool isSurvive) {
 	mIsSurvive = isSurvive;
+	if (!isSurvive) {
+		mItems.clear();
+	}
 }
 
 float Goose::remainingTime() const {

@@ -118,7 +118,7 @@ void Simulator::run() {
             float get_time = mTimer.elapsedSec();
             get_time = 1.0 - get_time;
             if (get_time < 0) {
-                stage.mRemainingTime[j] -= get_time;
+                stage.mRemainingTime[j] += get_time;
             }
         }
 
