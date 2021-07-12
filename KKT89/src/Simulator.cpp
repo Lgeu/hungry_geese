@@ -424,12 +424,9 @@ void Simulator::printKif() const {
         for (int i = 0; i < 4; ++i){
             auto AgentResult = stage.mAgentResult[i];
             // 盤面評価値
-            file_out << AgentResult.mValue << std::endl;
+            file_out << AgentResult.mValue;
             for (int j = 0; j < 4; ++j) {
-                if (j > 0) {
-                    file_out << " ";
-                }
-                file_out << AgentResult.mPolicy[j];
+                file_out << " " << AgentResult.mPolicy[j];
             }
             file_out << std::endl;
         }

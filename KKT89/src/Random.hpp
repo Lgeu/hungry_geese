@@ -1,5 +1,6 @@
 #pragma once
 #include <random>
+#include <chrono>
 #include "Types.hpp"
 
 namespace hungry_geese {
@@ -8,7 +9,7 @@ struct Random {
     std::mt19937 engine;
 
     // 特定の乱数シードで初期化するコンストラクタ
-    Random(uint aX = 0);
+    Random(uint aX = -1);
 
     // 乱数生成
     // [0, aTerm) の範囲で乱数を生成する

@@ -5,7 +5,13 @@
 namespace hungry_geese {
 
 Random::Random(uint aX) {
-    Random::x = aX;
+    // 指定がない時ランダムに変更…
+    if (aX == -1) {
+        Random::x = std::chrono::steady_clock::now().time_since_epoch().count();
+    }
+    else {
+        Random::x = aX;
+    }
     std::mt19937 aengine(aX);
     Random::engine = aengine;
 }

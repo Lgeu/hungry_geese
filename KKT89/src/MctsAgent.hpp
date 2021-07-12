@@ -1,6 +1,7 @@
 #pragma once
 #include "AgentResult.hpp"
 #include "Stage.hpp"
+#include "Stack.hpp"
 #include "Evaluation_function.hpp"
 
 namespace hungry_geese {
@@ -9,12 +10,18 @@ struct MctsAgent {
 	// コンストラクタ
 	MctsAgent();
 
-	struct Node {
-		Stage aStage; // 状態
-		float w; // 累計価値
-		int n; // 試行回数
-		bool is_AgentTurn; // Agentの手番か
-	};
+	// Node
+    struct Node {
+        Stage state; // 状態
+        float w; // 累計価値
+        int n; // 試行回数
+        bool is_AgentTurn; // Agentの手番か
+        Stack<int, 81> child_nodes; // 子ノードのindexを持つ
+    };
+    // Node用のメモリを予め確保しておく
+    const int NodeSize = 1000;
+    // std::array<Node, NodeSize> みたいに書きたかったけど書けなかった
+    std::array<Node, 100> mNodes;
 
 	// 実行
 	AgentResult run(const Stage& aStage, int aIndex);
