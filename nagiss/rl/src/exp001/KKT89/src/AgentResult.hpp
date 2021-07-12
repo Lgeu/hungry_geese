@@ -15,7 +15,8 @@ struct AgentResult {
 	// 手の評価
 	std::array<float, 4> mPolicy;
 	// 特徴量ベクトル
-	Stack<int, 100> mFeatures;
+	std::array<Stack<int, 100>, 4> mAgentFeatures;
+	Stack<int, 100> mConditionFeatures;
 };
 
 }
