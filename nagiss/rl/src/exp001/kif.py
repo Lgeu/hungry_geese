@@ -24,9 +24,32 @@ class Kif:
     steps: List[Step]
     ranks: List[int]
 
-    def print(self):
-        print("format_version:", self.format_version)
-        print("kif_id")
+    def kaggle_env_steps(self):
+        class Struct(dict):
+            def __init__(self, **entries):
+                entries = {k: v for k, v in entries.items() if k != "items"}
+                dict.__init__(self, entries)
+                self.__dict__.update(entries)
+
+            def __setattr__(self, attr, value):
+                self.__dict__[attr] = value
+                self[attr] = value
+
+        res = []
+        for step in self.steps:
+            agents = [Struct() for _ in range(4)]
+            for i, agent in enumerate(agents):
+                agent.action = "NORTH"
+                agent.reward = 0
+                agent.info = {}
+                agent.observation = Struct(remainingOverageTime=60, index=i)
+                agent.status = "ACTIVE" if len(step.agent_positions[i]) else "DONE"
+            agents[0].observation.step = step.step
+            agents[0].observation.geese = step.agent_positions
+            agents[0].observation.food = step.food_positions
+            res.append(agents)
+        return res
+
 
     @classmethod
     def from_dict(cls, d):
@@ -84,9 +107,79 @@ class Kif:
             })
 
 
-def test_kif_read():
-    kif = Kif.from_file("./KKT89/src/out/20210712153013_358084156.kif1")
+from bisect import bisect_right
+
+FEATURE_NAMES = """
+    NEIGHBOR_UP_7,
+    NEIGHBOR_DOWN_7,
+    NEIGHBOR_LEFT_7,
+    NEIGHBOR_RIGHT_7,
+    LENGTH,
+    DIFFERENCE_LENGTH_1ST,
+    DIFFERENCE_LENGTH_2ND,
+    DIFFERENCE_LENGTH_3RD,
+    DIFFERENCE_LENGTH_4TH,
+    RELATIVE_POSITION_TAIL,
+    RELATIVE_POSITION_OPPONENT_HEAD,
+    RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL,
+    RELATIVE_POSITION_FOOD,
+    MOVE_HISTORY,
+    RELATIVE_POSITION_TAIL_ON_PLANE_X,
+    RELATIVE_POSITION_TAIL_ON_PLANE_Y,
+    N_REACHABLE_POSITIONS_WITHIN_1_STEP,
+    N_REACHABLE_POSITIONS_WITHIN_2_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_3_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_4_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_5_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_6_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_7_STEPS,
+    N_REACHABLE_POSITIONS_WITHIN_8_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_1_STEP,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_2_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_3_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_4_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_5_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_6_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_7_STEPS,
+    N_OPPONENTS_SHARING_REACHABLE_POSITIONS_WITHIN_8_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_1_STEP,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_2_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_3_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_4_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_5_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_6_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_7_STEPS,
+    N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_8_STEPS,
+    N_ALIVING_GEESE,
+    N_OCCUPIED_POSITIONS,
+    STEP,
+    END
+""".replace(" ", "").replace("\n", "").split(",")
+
+
+def interpret_feature(feature):
+    BOUNDARY = [0, 128, 256, 384, 512, 589, 610, 631, 652, 673, 750, 826, 902, 978, 1234, 1295, 1356, 1362, 1376, 1402,
+                1442, 1496, 1562, 1636, 1714, 1718, 1722, 1726, 1730, 1734, 1738, 1742, 1746, 1752, 1766, 1792, 1832,
+                1886, 1952, 2026, 2104, 2107, 2183, 2382]
+    OFFSET = [0, 128, 256, 384, 511, 599, 620, 641, 662, 673, 749, 825, 901, 978, 1264, 1325, 1356, 1362, 1376, 1402,
+              1442, 1496, 1562, 1636, 1714, 1718, 1722, 1726, 1730, 1734, 1738, 1742, 1746, 1752, 1766, 1792, 1832,
+              1886, 1952, 2026, 2102, 2105, 2183, ]
+    feature_type = bisect_right(BOUNDARY, feature) - 1
+    assert 0 <= feature_type < len(OFFSET), f"feature={feature}, feature_type={feature_type}"
+    feature_value = feature - OFFSET[feature_type]
+    res = f"{FEATURE_NAMES[feature_type]} = {feature_value} ({bin(feature_value)})"
+    return res
+
+
+def test_kif_read(file="./KKT89/src/out/20210712175538_1926312680.kif1"):
+    kif = Kif.from_file(file)
     pprint(asdict(kif))
+    for step in kif.steps:
+        print(f"# step {step.step}")
+        for idx_agent, features in enumerate(step.agent_features):
+            print(f"- agent {idx_agent}")
+            for f in features:
+                print("  -", interpret_feature(f))
 
 
 if __name__ == "__main__":

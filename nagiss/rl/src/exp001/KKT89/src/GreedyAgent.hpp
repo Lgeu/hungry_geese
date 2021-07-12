@@ -4,6 +4,12 @@
 
 namespace hungry_geese {
 
+namespace evaluation_function {
+namespace feature {
+void PrintFeatureBoundary();
+}
+}
+
 struct GreedyAgent {
 	// コンストラクタ
 	GreedyAgent();

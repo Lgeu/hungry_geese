@@ -673,8 +673,8 @@ struct Min {
         data[(int)Features::RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL] = 1;
         data[(int)Features::RELATIVE_POSITION_FOOD] = 1;
         data[(int)Features::MOVE_HISTORY] = 0;
-        data[(int)Features::RELATIVE_POSITION_TAIL_ON_PLANE_X] = 30;
-        data[(int)Features::RELATIVE_POSITION_TAIL_ON_PLANE_Y] = 30;
+        data[(int)Features::RELATIVE_POSITION_TAIL_ON_PLANE_X] = -30;
+        data[(int)Features::RELATIVE_POSITION_TAIL_ON_PLANE_Y] = -30;
         data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_1_STEP] = 0;
         data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_2_STEPS] = 0;
         data[(int)Features::N_REACHABLE_POSITIONS_WITHIN_3_STEPS] = 0;
@@ -758,7 +758,7 @@ struct Max {
     const int& operator[](const Features& feature) const {
         return data[(int)feature];
     }
-} ;
+};
 
 struct Offset {
     array<int, N_FEATURES+1> data;
@@ -773,12 +773,29 @@ struct Offset {
     const int& operator[](const Features& feature) const {
         return data[(int)feature];
     }
-} ;
+};
 
 constexpr auto MIN = Min();
 constexpr auto MAX = Max();
 constexpr auto OFFSET = Offset(MIN, MAX);
 constexpr auto NN_INPUT_DIM = OFFSET.data[N_FEATURES];
+
+void PrintFeatureBoundary() {
+    // 特徴量カテゴリの境界位置と中心位置を出力
+    int idx = 0;
+    cout << "BOUNDARY = [";
+    for (auto i = 0; i < N_FEATURES; i++) {
+        cout << idx << ",";
+        idx += MAX.data[i] - MIN.data[i] + 1;
+    }
+    cout << idx << "]" << endl;
+
+    cout << "OFFSET = [";
+    for (auto i = 0; i < N_FEATURES; i++) {
+        cout << OFFSET.data[i] << ",";
+    }
+    cout << "]" << endl;
+}
 
 constexpr auto MAX_FEATURE_REACHABLE_CALCULATION = 8;
 
