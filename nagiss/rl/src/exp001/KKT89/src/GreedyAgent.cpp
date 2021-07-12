@@ -1165,6 +1165,7 @@ AgentResult GreedyAgent::run(const Stage& aStage, int aIndex) {
         // 入力
         auto geese = std::array<Stack<int, 77>, 4>();
         for (int i = 0; i < 4; i++) {
+            if (!aStage.geese()[i].isSurvive()) continue;
             for (const auto& p : aStage.geese()[i].items()) {
                 geese[i].push(p.id);
             }

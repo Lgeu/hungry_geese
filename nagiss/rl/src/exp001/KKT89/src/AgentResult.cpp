@@ -3,11 +3,10 @@
 
 namespace hungry_geese {
 
-AgentResult::AgentResult() : mAction(), mValue(-100) {
+AgentResult::AgentResult() : mAction(), mValue(-100), mAgentFeatures(), mConditionFeatures() {
 	for (int i = 0; i < 4; ++i){
 		mPolicy[i] = -100;
 	}
-	// TODO：特徴量の初期化について
 }
 
 }

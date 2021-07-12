@@ -1,4 +1,5 @@
 #pragma once
+#define _CRT_SECURE_NO_WARNINGS
 #include "Simulator.hpp"
 
 namespace hungry_geese {
@@ -431,14 +432,27 @@ void Simulator::printKif() const {
                 file_out << AgentResult.mPolicy[j];
             }
             file_out << std::endl;
-            // 特徴量ベクトル
-            for (int j = 0; j < AgentResult.mFeatures.size(); ++j) {
-                if (j > 0) {
-                    file_out << " ";
+        }
+
+        // 特徴量ベクトル
+        for (int currentlySurvivingAgent = 0; currentlySurvivingAgent < 4; currentlySurvivingAgent++) {
+            if (!stage.geese()[currentlySurvivingAgent].isSurvive()) continue;  // 4 エージェントとも同じ情報を持っている (はず) ので、生きてるやつを使う
+            const auto& agentResult = stage.mAgentResult[currentlySurvivingAgent];
+            // 各エージェントの特徴
+            for (int i = 0; i < 4; i++) {
+                file_out << agentResult.mAgentFeatures[i].size();
+                for (const auto& feature : agentResult.mAgentFeatures[i]) {
+                    file_out << " " << feature;
                 }
-                file_out << AgentResult.mFeatures[j];
+                file_out << std::endl;
+            }
+            // 全体の特徴
+            file_out << agentResult.mConditionFeatures.size();
+            for (const auto& feature : agentResult.mConditionFeatures) {
+                file_out << " " << feature;
             }
             file_out << std::endl;
+            break;
         }
     }
 
