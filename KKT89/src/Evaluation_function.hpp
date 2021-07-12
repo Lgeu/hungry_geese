@@ -34,7 +34,7 @@ struct Matrix{
         return ((U*)&data)->raveled;
     }
     void Fill(const T& fill_value) {
-        fill(Ravel().begin(), Ravel().end(), fill_value);
+        std::fill(Ravel().begin(), Ravel().end(), fill_value);
     }
     inline auto& operator+=(const Matrix& rhs) {
         for(int i=0; i<dim1*dim2; i++) Ravel()[i] += rhs.Ravel()[i];
@@ -505,6 +505,8 @@ struct Evaluator{
             float value;
         } result;
         model.Forward(input, result.policy, result.value);
+        std::swap(result.policy[1],result.policy[2]);
+        std::swap(result.policy[1],result.policy[3]);
         return result;
     }
 };

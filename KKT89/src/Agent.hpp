@@ -14,9 +14,9 @@ struct Agent {
 
 	// エージェント
 	MctsAgent Agent0;
-	GreedyAgent Agent1;
-	GreedyAgent Agent2;
-	GreedyAgent Agent3;
+	MctsAgent Agent1;
+	MctsAgent Agent2;
+	MctsAgent Agent3;
 
 	// 行動一覧
 	const Actions Idx_to_Actions = {
