@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
 
 from kif import Kif
 
@@ -37,7 +36,10 @@ class Dataset(torch.utils.data.Dataset):
         kif = self.kifs[idx]
         n_steps = len(kif.steps) - 1  # 最後のステップは着手が無いので除外
         step = torch.randint(n_steps, tuple())
-        agent_features = pad_sequence([torch.tensor(feats) for feats in kif.steps[step].agent_features], batch_first=True, padding_value=-100)
+        agent_features = torch.nn.utils.rnn.pad_sequence(
+            [torch.tensor(feats) for feats in kif.steps[step].agent_features],
+            batch_first=True, padding_value=-100
+        ).to(torch.long)  # padding_value を設定すると float になるので戻す必要がある
         condition_features = torch.tensor(kif.steps[step].condition_features)
         target_rank = torch.tensor(kif.ranks)
         target_policy = torch.tensor(kif.steps[step].values, dtype=torch.float)[:, 1:]
@@ -51,9 +53,10 @@ class Dataset(torch.utils.data.Dataset):
 class Model(nn.Module):
     def __init__(self, features, out_dim=5, hidden_1=256, hidden_2=32):
         super().__init__()
+        self.features = features
         self.hidden_1 = hidden_1
         self.hidden_2 = hidden_2
-        self.embed = nn.EmbeddingBag(features, hidden_1, mode="sum", padding_idx=-100)
+        self.embed = nn.EmbeddingBag(features+1, hidden_1, mode="sum", padding_idx=features)
         self.embed.weight.data /= 8.0  # 小さめの値で初期化
         self.linear_condition = nn.Linear(hidden_1, hidden_2)
         self.linear_2 = nn.Linear(hidden_1, hidden_2)
@@ -70,20 +73,21 @@ class Model(nn.Module):
             torch.Tensor: (batch, 4, out_dim)
         """
         batch_size = x.shape[0]
+        x = torch.where(x != -100, x, self.features)
 
         # (1) [batch, 4, length] -> [batch, 4, 256]
         x = F.relu_(self.embed(x.view(batch_size * 4, -1)).view(batch_size, 4, self.hidden_1))
 
         # (2) [batch, length] -> [batch, 256]
         condition = F.relu_(self.embed(condition))
-        condition += x.sum(1)
+        condition = condition + x.sum(1)
 
         # (3) [batch, 256] -> [batch, 32]
         condition = F.relu_(self.linear_condition(condition))
 
         # (4) [batch, 4, 256] -> [batch, 4, 32]
         x = F.relu_(self.linear_2(x))
-        x += condition.unsqueeze(1)
+        x = x + condition.unsqueeze(1)
 
         # (5) [batch, 4, 32] -> [batch, 4, 32]
         x = F.relu_(self.linear_3(x))
