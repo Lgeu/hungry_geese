@@ -144,5 +144,108 @@ class Loss(nn.Module):
         policy_loss = soft_cross_entropy(pred, target) * 0.5 / (alive.sum()+1e-10)
 
         #print("loss:", value_loss.item(), policy_loss.item())
-        loss = value_loss+policy_loss
+        loss = value_loss + policy_loss
         return loss
+
+
+def collate_fn(batch):
+    agent_features, condition_features, target_rank, target_policy = zip(*batch)
+    pad_sequence = torch.nn.utils.rnn.pad_sequence
+    agent_features = pad_sequence([f.permute(1, 0) for f in agent_features], batch_first=True,
+                                  padding_value=-100).permute(0, 2, 1).contiguous()
+    condition_features = pad_sequence(condition_features, batch_first=True, padding_value=-100).contiguous()
+    target_rank = torch.stack(target_rank)
+    target_policy = torch.stack(target_policy)
+    return agent_features, condition_features, target_rank, target_policy
+
+
+def tee(text, f=None):
+    print(text)
+    if f is not None:
+        f.write(text)
+        f.write("\n")
+        f.flush()
+
+
+if __name__ == "__main__":
+    # 学習
+
+    from time import sleep
+    from pathlib import Path
+
+    from tqdm import tqdm
+    #from tqdm.notebook import tqdm
+
+    # 設定
+    batch_size = 256
+    device = "cpu"
+    n_epochs = 5
+    sgd_learning_rate = 1e-1
+    adam_learning_rate = 1e-3
+    N_FEATURES = 2382
+    out_dir = Path("./out")
+    kif_files = ["kif.kif1"] * 4096  # TODO
+
+    # 出力ディレクトリ作成
+    checkpoint_dir = out_dir / "checkpoint"
+    if not out_dir.exists():
+        out_dir.mkdir()
+        checkpoint_dir.mkdir()
+
+    # データ
+    print("loading data...")
+    dataset = Dataset(kif_files)
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size, shuffle=True, num_workers=0,
+        collate_fn=collate_fn, pin_memory=True, drop_last=True
+    )
+    print("loaded!")
+
+    # モデル、最適化手法、損失関数
+    model = Model(features=N_FEATURES+1)
+    model.to(device)
+    optimizer = torch.optim.SGD(model.parameters(), lr=sgd_learning_rate, momentum=0.9)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=adam_learning_rate)
+    criterion = Loss()
+
+    # 記録
+    epoch_losses = []
+    f_log = open(out_dir / "log.txt", "a")
+
+    # 学習ループ
+    for epoch in range(n_epochs):
+        model.train()
+        tee(f"epoch {epoch}", f_log)
+        sleep(0.5)
+        epoch_loss = 0.0
+        n_predicted_data = 0
+        iteration = 0
+        for agent_features, condition_features, target_rank, target_policy in tqdm(dataloader):
+            agent_features = agent_features.to(device)
+            condition_features = condition_features.to(device)
+            target_rank = target_rank.to(device)
+            target_policy = target_policy.to(device)
+
+            optimizer.zero_grad()
+            preds = model(agent_features, condition_features)
+            loss = criterion(preds, target_rank, target_policy)
+            loss.backward()
+            optimizer.step()
+
+            epoch_loss += loss.item() * len(agent_features)
+            n_predicted_data += len(agent_features)
+            iteration += 1
+
+        epoch_loss /= n_predicted_data
+        tee(f"epoch_loss = {epoch_loss}")
+        epoch_losses.append(epoch_loss)
+
+        if out_dir is not None and (epoch % 10 == 0 or epoch == n_epochs - 1):
+            torch.save({
+                "epoch": epoch,
+                "epoch_loss": epoch_loss,
+                "state_dict": model.state_dict(),
+                "optimizer": optimizer.state_dict()
+            }, checkpoint_dir / f"{epoch:03d}.pt")
+
+    f_log.close()
