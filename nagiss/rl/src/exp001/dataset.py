@@ -82,20 +82,33 @@ class Model(nn.Module):
         return x
 
 
-class Loss(nn.Module):
-    def __init__(self, elmo_lambda=0.5):
-        super().__init__()
-        self.elmo_lambda = elmo_lambda
+def soft_cross_entropy(pred, target):
+    """クロスエントロピー
 
-    def forward(self, x, target_rank, target_move, target_value, alive):
+    全バッチの合計
+
+    Args:
+        pred: softmax 前の値 (batch, n)
+        target: (batch, n)
+
+    Returns:
+
+    """
+    return -(target*F.log_softmax(pred, dim=1)).sum()
+
+
+class Loss(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x, target_rank, target_policy, alive):
         """
 
         Args:
             x: (batch, 4, 5)
             target_rank (torch.LongTensor): (batch, 4)
-            target_move (torch.LongTensor): (batch, 4)
-            target_value: (batch, 4, 5)  探索で得た値
-            alive: (batch, 4)
+            target_policy (torch.tensor): (batch, 4, 4)  探索で得た値
+            alive: (batch, 4)  01 変数
 
         Returns:
 
@@ -104,19 +117,17 @@ class Loss(nn.Module):
         value_loss = 0.0
         for a in range(4):
             for b in range(a+1, 4):
-                rank_diff = target_rank[:, a] - target_rank[:, b]  # (batch,)
-                t = torch.where(rank_diff < 0, 1.0, 0.0).to(torch.float32)
-                t = torch.where(rank_diff == 0, 0.5, t)
-                pred = x[:, a, 0] - x[:, b, 0]
-                value_loss = value_loss + F.binary_cross_entropy_with_logits(pred, t) \
-                             + self.elmo_lambda * F.binary_cross_entropy_with_logits(pred, target_value[:, a, 0] - target_value[:, b, 0])
+                rank_diff = target_rank[:, a]-target_rank[:, b]  # (batch,)
+                t = torch.where(rank_diff < 0, torch.tensor(1.0), torch.tensor(0.0))
+                t = torch.where(rank_diff == 0, torch.tensor(0.5), t)
+                pred = x[:, a, 0]-x[:, b, 0]
+                value_loss = value_loss+F.binary_cross_entropy_with_logits(pred, t)
         value_loss /= 6.0  # 4C2
 
-        pred = x[:, :, 1:].reshape(batch_size * 4, 4)[alive.view(-1)]
-        move = target_move.view(batch_size * 4)[alive.view(-1)]
-        target = target_value[:, :, 1:].reshape(batch_size * 4, 4)[alive.view(-1)]
-        policy_loss = F.cross_entropy(pred, move) \
-                      + self.elmo_lambda * F.binary_cross_entropy_with_logits(pred, target)
-        print("loss:", value_loss, policy_loss)
-        loss = value_loss + policy_loss
+        pred = x[:, :, 1:].reshape(batch_size*4, 4)
+        target = target_policy.view(batch_size*4, 4)*alive.view(-1)
+        policy_loss = soft_cross_entropy(pred, target) * 0.5 / (alive.sum()+1e-10)
+
+        print("loss:", value_loss.item(), policy_loss.item())
+        loss = value_loss+policy_loss
         return loss

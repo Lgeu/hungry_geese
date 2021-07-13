@@ -1152,15 +1152,6 @@ struct Duct {
             return *child;
         }
 
-        float Evaluate() {
-            if (state.Finished()) {  // 決着がついた
-                return state.Score();
-            }
-            if (n == 1) {
-
-            }
-        }
-
     };
 
 
