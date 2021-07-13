@@ -135,8 +135,8 @@ class Loss(nn.Module):
         value_loss /= 6.0  # 4C2
 
         pred = x[:, :, 1:].reshape(batch_size * 4, 4)
-        alive = target_policy[:, :, 1] != -100.0
-        target = target_policy.view(batch_size * 4, 4) * alive.view(-1)
+        alive = target_policy[:, :, 0] != -100.0  # (batch, 4)
+        target = (target_policy*alive.unsqueeze(2)).view(batch_size*4, 4)
         policy_loss = soft_cross_entropy(pred, target) * 0.5 / (alive.sum()+1e-10)
 
         #print("loss:", value_loss.item(), policy_loss.item())
