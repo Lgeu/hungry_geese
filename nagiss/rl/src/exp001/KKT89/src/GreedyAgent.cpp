@@ -1081,9 +1081,11 @@ void ExtractFeatures(
 }  // namespace feature
 
 struct Evaluator {
-    Model<feature::NN_INPUT_DIM> model;
+    Model<feature::NN_INPUT_DIM + 1> model;  // Python 側の都合でひとつ多く持つ
     Evaluator() {
         // モデルのパラメータ設定
+        model.embed.parameters.weight.Ravel() = 
+        
         // TODO
     }
     template<class T, int max_size>

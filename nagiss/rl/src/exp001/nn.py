@@ -28,9 +28,9 @@ class Dataset(torch.utils.data.Dataset):
             idx (int):
         Returns:
             torch.Tensor: agent_features     エージェント特徴 (4, length) dtype=long
-            torch.Tensor: condition_features 状態特徴       (length,)   dtype=long
-            torch.Tensor: target_rank        最終順位       (4,)        dtype=long
-            torch.Tensor: target_policy      探索で得た方策  (4, 4)      dtype=float
+            torch.Tensor: condition_features 状態特徴        (length,)   dtype=long
+            torch.Tensor: target_rank        最終順位        (4,)        dtype=long
+            torch.Tensor: target_policy      探索で得た方策   (4, 4)      dtype=float
         """
 
         kif = self.kifs[idx]
@@ -57,11 +57,19 @@ class Model(nn.Module):
         self.hidden_1 = hidden_1
         self.hidden_2 = hidden_2
         self.embed = nn.EmbeddingBag(features+1, hidden_1, mode="sum", padding_idx=features)
-        self.embed.weight.data /= 8.0  # 小さめの値で初期化
+        self.embed.weight.data /= 16.0  # 小さめの値で初期化
         self.linear_condition = nn.Linear(hidden_1, hidden_2)
         self.linear_2 = nn.Linear(hidden_1, hidden_2)
         self.linear_3 = nn.Linear(hidden_2, hidden_2)
         self.linear_4 = nn.Linear(hidden_2, out_dim)
+        self.quantized = False
+
+        # scaling
+        self.embed.weight.data *= 1 << 12
+        self.linear_condition.weight.data *= 1 << 6
+        self.linear_2.weight.data *= 1 << 6
+        self.linear_3.weight.data *= 1 << 6
+        self.linear_4.weight.data *= 1 << 6
 
     def forward(self, x, condition):
         """
@@ -72,29 +80,59 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: (batch, 4, out_dim)
         """
+        if self.quantized:
+            return self.q_forward(x, condition)
+
+        def hardtanh_(x, limit):
+            return F.hardtanh(x, -limit, limit, inplace=False)
+
         batch_size = x.shape[0]
         x = torch.where(x != -100, x, self.features)
 
         # (1) [batch, 4, length] -> [batch, 4, 256]
-        x = F.relu_(self.embed(x.view(batch_size * 4, -1)).view(batch_size, 4, self.hidden_1))
+        x = self.embed(x.view(batch_size * 4, -1)).view(batch_size, 4, self.hidden_1)
+        x = hardtanh_(x, 127 * (1 << 5))                       # scale = 2^12, max = (2^7-1)2^5
 
         # (2) [batch, length] -> [batch, 256]
-        condition = F.relu_(self.embed(condition))
-        condition = condition + x.sum(1)
+        condition = hardtanh_(self.embed(condition), 1 << 12)  # scale = 2^12, max = 2^12
+        condition = condition + x.sum(1)                       # scale = 2^12, max = (2^7-1)2^8
+        condition /= 1 << 8                                    # scale = 2^4,  max = 2^7-1
 
         # (3) [batch, 256] -> [batch, 32]
-        condition = F.relu_(self.linear_condition(condition))
+        condition = self.linear_condition(condition)           # scale = 2^10
+        condition = hardtanh_(condition, 127 * (1 << 3))       # scale = 2^10, max = (2^7-1)2^3
+        condition *= 1 << 3                                    # scale = 2^13, max = (2^7-1)2^6
 
         # (4) [batch, 4, 256] -> [batch, 4, 32]
-        x = F.relu_(self.linear_2(x))
-        x = x + condition.unsqueeze(1)
+        x /= 1 << 5                                            # scale = 2^7,  max = 2^7-1
+        x = self.linear_2(x)                                   # scale = 2^13
+        x = hardtanh_(x, 127 * (1 << 6))                       # scale = 2^13, max = (2^7-1)2^6
+        x = x + condition.unsqueeze(1)                         # scale = 2^13, max = (2^7-1)2^7
+        x /= 1 << 7                                            # scale = 2^6,  max = 2^7-1
 
         # (5) [batch, 4, 32] -> [batch, 4, 32]
-        x = F.relu_(self.linear_3(x))
+        x = self.linear_3(x)                                   # scale = 2^12
+        x = hardtanh_(x, 127 * (1 << 5))                       # scale = 2^12, max = (2^7-1)2^5
+        x /= 1 << 5                                            # scale = 2^7,  max = 2^7-1
 
         # (6) [batch, 4, 32] -> [batch, 4, out_dim]
-        x = self.linear_4(x)
+        x = self.linear_4(x)                                   # scale = 2^13
+        x /= 1 << 13                                           # scale = 1
 
+        return x
+
+    def quantize(self):
+        from copy import deepcopy
+        qmodel = deepcopy(self)
+
+        # TODO
+        return qmodel
+
+    def q_forward(self, x, condition):
+        batch_size = x.shape[0]
+        x = torch.where(x != -100, x, self.features)
+
+        # TODO
         return x
 
 
