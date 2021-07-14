@@ -167,19 +167,33 @@ struct Tensor4 {
 
 namespace F {
     template<class Tensor>
-    void Relu_(Tensor& input) {
+    inline void Relu_(Tensor& input) {
         for (auto&& value : input.Ravel()) {
             value = max(value, (typename remove_reference<decltype(input.Ravel()[0])>::type)0);
         }
     }
     template<typename T, unsigned siz>
-    void Relu_(array<T, siz>& input) {
+    inline void Relu_(array<T, siz>& input) {
         for (auto&& value : input) {
             value = max(value, (T)0);
         }
     }
+    template<typename T, unsigned siz>
+    inline void Hardtanh_(array<T, siz>& input, const T& min_val, const T& max_val) {
+        for (auto&& value : input) {
+            value = max(min_val, min(max_val, value));
+        }
+    }
+    template<class Tensor>
+    inline void Hardtanh_(Tensor& input, const typename remove_reference<decltype(input.Ravel()[0])>::type& min_val, const typename remove_reference<decltype(input.Ravel()[0])>::type& max_val) {
+        Hardtanh_(input.Ravel(), min_val, max_val);
+    }
+    template<class Container, typename T>
+    inline void Hardtanh_(Container& input, const T& max_abs_val) {
+        Hardtanh_(input, -max_abs_val, max_abs_val);
+    }
     template<class T, size_t siz>
-    void Softmax_(array<T, siz>& input) {
+    inline void Softmax_(array<T, siz>& input) {
         auto ma = numeric_limits<float>::min();
         for (const auto& v : input) if (ma < v) ma = v;
         auto s = 0.0f;
@@ -187,6 +201,7 @@ namespace F {
         auto c = ma + logf(s);
         for (auto&& v : input) v = expf(v - c);
     }
+
 }
 
 template<int n_features>
@@ -274,39 +289,39 @@ struct TorusConv2d {
     }
 };
 
-template<int in_features, int out_features>
+template<int in_features, int out_features, typename dtype = float, typename out_dtype = float>
 struct Linear {
     struct Parameters {
-        Matrix<float, out_features, in_features> weight;
-        array<float, out_features> bias;
+        Matrix<dtype, out_features, in_features> weight;
+        array<out_dtype, out_features> bias;
     } parameters;
 
     // コンストラクタ
     Linear() : parameters() {}
 
-    void Forward(const array<float, in_features>& input, array<float, out_features>& output) const {
+    void Forward(const array<dtype, in_features>& input, array<out_dtype, out_features>& output) const {
         output = parameters.bias;
         for (int out_channel = 0; out_channel < out_features; out_channel++) {
             for (int in_channel = 0; in_channel < in_features; in_channel++) {
-                output[out_channel] += input[in_channel] * parameters.weight[out_channel][in_channel];
+                output[out_channel] += (out_dtype)input[in_channel] * (out_dtype)parameters.weight[out_channel][in_channel];
             }
         }
     }
 };
 
-template<int num_embeddings, int embedding_dim>
+template<int num_embeddings, int embedding_dim, typename dtype = float>
 struct EmbeddingBag {
     // mode="sum" のみ対応
     struct Parameters {
-        Matrix<float, num_embeddings, embedding_dim> weight;
+        Matrix<dtype, num_embeddings, embedding_dim> weight;
     } parameters;
 
     // コンストラクタ
     EmbeddingBag() : parameters() {}
 
     template<class Vector>  // Stack<int, n> とか
-    void Forward(const Vector& input, array<float, embedding_dim>& output) const {
-        fill(output.begin(), output.end(), 0.0f);
+    void Forward(const Vector& input, array<dtype, embedding_dim>& output) const {
+        fill(output.begin(), output.end(), (dtype)0);
         for (const auto& idx : input) {
             for (int dim = 0; dim < embedding_dim; dim++) {
                 output[dim] += parameters.weight[idx][dim];
@@ -315,9 +330,8 @@ struct EmbeddingBag {
     }
 };
 
-template<int in_dim, int out_dim = 5, int hidden_1 = 256, int hidden_2 = 32>
+template<int in_dim, int out_dim = 5, int hidden_1 = 256, int hidden_2 = 32, bool quantize = false>
 struct Model {
-    // TODO: Embed を 1 つに統一
     EmbeddingBag<in_dim, hidden_1> embed;
     Linear<hidden_1, hidden_2> linear_condition;
     Linear<hidden_1, hidden_2> linear_2;
@@ -377,6 +391,108 @@ struct Model {
     }
 
 };
+
+// 特殊化
+template<int in_dim, int out_dim, int hidden_1, int hidden_2>
+struct Model<in_dim, out_dim, hidden_1, hidden_2, true> {
+    EmbeddingBag<in_dim, hidden_1, short> embed;
+    Linear<hidden_1, hidden_2, signed char, short> linear_condition;
+    Linear<hidden_1, hidden_2, signed char, short> linear_2;
+    Linear<hidden_2, hidden_2, signed char, short> linear_3;
+    Linear<hidden_2, out_dim, signed char, short> linear_4;
+
+    // コンストラクタ
+    Model() : embed(), linear_condition(), linear_2(), linear_3(), linear_4() {}
+
+    template<class Vector1, class Vector2>  // Stack<int, n> とか
+    void Forward(const array<Vector1, 4>& agent_features, const Vector2& condition_features, Matrix<float, 4, out_dim>& output) const {
+        // (1)
+        static auto agent_embedded = Matrix<short, 4, hidden_1>();
+        for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
+            embed.Forward(agent_features[idx_agents], agent_embedded[idx_agents]);
+        }
+        F::Hardtanh_(agent_embedded, (short)(127 << 5));
+
+        // (2)
+        static auto condition_embedded = array<short, hidden_1>();
+        embed.Forward(condition_features, condition_embedded);
+        F::Hardtanh_(condition_embedded, (short)(1 << 12));
+        for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
+            for (int dim = 0; dim < hidden_1; dim++) {
+                condition_embedded[dim] += agent_embedded[idx_agents][dim];  // Vector 構造体を作るべきだった感
+            }
+        }
+        // scale -8
+        static auto condition_embedded_8bit = array<signed char, hidden_1>();
+        for (int dim = 0; dim < hidden_1; dim++) {
+            condition_embedded_8bit[dim] = condition_embedded[dim] + (1 << 7) >> 8;
+        }
+
+        // (3)
+        static auto condition_hidden = array<short, hidden_2>();
+        linear_condition.Forward(condition_embedded_8bit, condition_hidden);
+        F::Hardtanh_(condition_hidden, (short)(127 << 3));
+        // scale 3
+        for (auto&& value : condition_hidden) value <<= 3;
+
+        // (4)
+        static auto agent_embedded_8bit = Matrix<signed char, 4, hidden_1>();
+        // scale -5
+        for (int dim = 0; dim < agent_embedded.Ravel().size(); dim++) {
+            agent_embedded_8bit.Ravel()[dim] = agent_embedded.Ravel()[dim] + (1 << 4) >> 5;
+        }
+        static auto hidden_state_2 = Matrix<short, 4, hidden_2>();  // linear_3 でも使い回す
+        for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
+            linear_2.Forward(agent_embedded_8bit[idx_agents], hidden_state_2[idx_agents]);
+        }
+        F::Hardtanh_(hidden_state_2, (short)(127 << 6));
+        for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
+            for (int dim = 0; dim < hidden_2; dim++) {
+                hidden_state_2[idx_agents][dim] += condition_hidden[dim];
+            }
+        }
+        static auto hidden_state_2_8bit = Matrix<signed char, 4, hidden_2>();
+        // scale -7
+        for (int dim = 0; dim < hidden_state_2.Ravel().size(); dim++) {
+            hidden_state_2_8bit.Ravel()[dim] = hidden_state_2.Ravel()[dim] + (1 << 6) >> 7;
+        }
+
+        // (5)
+        for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
+            linear_3.Forward(hidden_state_2_8bit[idx_agents], hidden_state_2[idx_agents]);
+        }
+        F::Hardtanh_(hidden_state_2, (short)(127 << 5));
+        // scale -5
+        for (int dim = 0; dim < hidden_state_2.Ravel().size(); dim++) {
+            hidden_state_2_8bit.Ravel()[dim] = hidden_state_2.Ravel()[dim] + (1 << 4) >> 5;
+        }
+
+        // (6)
+        static auto before_out = Matrix<short, 4, out_dim>();
+        for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
+            linear_4.Forward(hidden_state_2_8bit[idx_agents], before_out[idx_agents]);
+        }
+        for (int dim = 0; dim < output.Ravel().size(); dim++) {
+            output.Ravel()[dim] = (float)before_out.Ravel()[dim] / (float)(1 << 13);
+        }
+    }
+
+    template<class Vector1, class Vector2>  // Stack<int, n> とか
+    auto Predict(const array<Vector1, 4>& agent_features, const Vector2& condition_features) const {
+        struct PolicyValue {
+            float value;
+            array<float, 4> policy;
+        };
+        auto res = array<PolicyValue, 4>();
+        static auto model_out = Matrix<float, 4, out_dim>();
+        Forward(agent_features, condition_features, model_out);
+        static_assert(sizeof(res) == sizeof(model_out));
+        memcpy(&res, &model_out, sizeof(res));  // 危険
+        return res;
+    }
+
+};
+
 
 
 struct BitBoard {
@@ -1081,11 +1197,10 @@ void ExtractFeatures(
 }  // namespace feature
 
 struct Evaluator {
-    Model<feature::NN_INPUT_DIM + 1> model;  // Python 側の都合でひとつ多く持つ
+    Model<feature::NN_INPUT_DIM + 1, 5, 256, 32, true> model;  // Python 側の都合でひとつ多く持つ
     Evaluator() {
         // モデルのパラメータ設定
-        model.embed.parameters.weight.Ravel() = 
-        
+        //#include parameters.cpp
         // TODO
     }
     template<class T, int max_size>
@@ -1097,8 +1212,7 @@ struct Evaluator {
         static auto output = Matrix<float, 4, 5>();
 
         feature::ExtractFeatures(geese, foods, current_step, agent_features, condition_features);
-        model.Forward(agent_features, condition_features, output);
-        return output;  // TODO: p とか v とかに分ける
+        return model.Predict(agent_features, condition_features);
     }
 };
 
