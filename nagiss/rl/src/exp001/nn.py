@@ -1,5 +1,9 @@
+from time import sleep
 from copy import deepcopy
+from pathlib import Path
 
+from tqdm import tqdm
+# from tqdm.notebook import tqdm
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -50,6 +54,50 @@ class Dataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.kif_files)
+
+
+class FastDataset(torch.utils.data.Dataset):
+    def __init__(self, kif_files):
+        """局面を直接持っておくデータセット
+
+        Args:
+            kif_files (list[str]): 棋譜ファイル名のリスト
+        """
+
+        self.kif_files = kif_files
+        self.data = self.load_all_states(kif_files)
+
+    def load_all_states(self, kif_files):
+        data = []  # type:
+        for file in tqdm(kif_files):
+            kif = Kif.from_file(file)
+            for step in kif.steps[:-1]:  # 最後のステップは着手が無いので除外
+                agent_features = torch.nn.utils.rnn.pad_sequence(
+                    [torch.tensor(feats) for feats in step.agent_features],
+                    batch_first=True, padding_value=-100
+                ).to(torch.long)  # padding_value を設定すると float になるので戻す必要がある
+                condition_features = torch.tensor(step.condition_features)
+                target_rank = torch.tensor(kif.ranks)
+                target_policy = torch.tensor(step.values, dtype=torch.float)[:, 1:]
+                assert target_policy.shape == (4, 4)
+                data.append((agent_features, condition_features, target_rank, target_policy))
+        return data
+
+    def __getitem__(self, idx):
+        """
+        Args:
+            idx (int):
+        Returns:
+            torch.Tensor: agent_features     エージェント特徴 (4, length) dtype=long
+            torch.Tensor: condition_features 状態特徴        (length,)   dtype=long
+            torch.Tensor: target_rank        最終順位        (4,)        dtype=long
+            torch.Tensor: target_policy      探索で得た方策   (4, 4)      dtype=float
+        """
+
+        return self.data[idx]
+
+    def __len__(self):
+        return len(self.data)
 
 
 class Model(nn.Module):
@@ -129,9 +177,14 @@ class Model(nn.Module):
         qmodel.quantized = True
 
         # scaling
-        def scale(params, p):
+        def scale(params, p, bits=8):
+            device = params.data.device
+            mi = torch.tensor(-(1<<bits-1), dtype=torch.float).to(device)
+            ma = torch.tensor((1<<bits-1)-1, dtype=torch.float).to(device)
             params.data = torch.round(params.data * (1 << p))
-        scale(qmodel.embed.weight, 12)
+            params.data = torch.where(params.data > ma, ma, params.data)
+            params.data = torch.where(params.data < mi, mi, params.data)
+        scale(qmodel.embed.weight, 12, bits=16)
         scale(qmodel.linear_condition.weight, 6)
         scale(qmodel.linear_condition.bias, 6)
         scale(qmodel.linear_2.weight, 6)
@@ -144,12 +197,17 @@ class Model(nn.Module):
         return qmodel
 
     def dump(self, fp=None):
+        assert self.quantized
         for name, params in self.named_parameters():
             layer, weight_bias = name.split(".")
             left = f"model.{layer}.parameters.{weight_bias}.Ravel()"
 
             p = params.detach().numpy().ravel().astype(int)
-            right = f"array<float,{len(p)}>" + "{" + ",".join(map(str, p)) + "}"
+            if layer == "embed":
+                typ = "short"
+            else:
+                typ = "signed char"
+            right = f"array<{typ},{len(p)}>" + "{" + ",".join(map(str, p)) + "}"
 
             print(f"{left}={right};", file=fp)
 
@@ -188,8 +246,8 @@ class Loss(nn.Module):
         for a in range(4):
             for b in range(a+1, 4):
                 rank_diff = target_rank[:, a] - target_rank[:, b]  # (batch,)
-                t = torch.where(rank_diff < 0, torch.tensor(1.0), torch.tensor(0.0))
-                t = torch.where(rank_diff == 0, torch.tensor(0.5), t)
+                t = torch.where(rank_diff < 0, torch.tensor(1.0).to(device), torch.tensor(0.0).to(device))
+                t = torch.where(rank_diff == 0, torch.tensor(0.5).to(device), t)
                 pred = x[:, a, 0] - x[:, b, 0]
                 value_loss = value_loss + F.binary_cross_entropy_with_logits(pred, t)
         value_loss /= 6.0  # 4C2
@@ -226,13 +284,9 @@ def tee(text, f=None):
 if __name__ == "__main__":
     # 学習
 
-    from time import sleep
-    from pathlib import Path
-
-    from tqdm import tqdm
-    #from tqdm.notebook import tqdm
 
     # 設定
+    #torch.set_num_threads(2)
     batch_size = 256
     device = "cpu"
     n_epochs = 5
@@ -250,7 +304,11 @@ if __name__ == "__main__":
 
     # データ
     print("loading data...")
-    dataset = Dataset(kif_files)
+    sleep(0.5)
+    if "dataset" not in vars():
+        #dataset = Dataset(kif_files)
+        dataset = FastDataset(kif_files)
+    print(f"len(dataset)={len(dataset)}")
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size, shuffle=True, num_workers=0,
         collate_fn=collate_fn, pin_memory=True, drop_last=True
@@ -260,8 +318,8 @@ if __name__ == "__main__":
     # モデル、最適化手法、損失関数
     model = Model(features=N_FEATURES+1)
     model.to(device)
-    optimizer = torch.optim.SGD(model.parameters(), lr=sgd_learning_rate, momentum=0.9)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=adam_learning_rate)
+    #optimizer = torch.optim.SGD(model.parameters(), lr=sgd_learning_rate, momentum=0.9)
+    optimizer = torch.optim.Adam(model.parameters(), lr=adam_learning_rate, amsgrad=True)
     criterion = Loss()
 
     # 記録
