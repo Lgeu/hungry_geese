@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -64,13 +66,6 @@ class Model(nn.Module):
         self.linear_4 = nn.Linear(hidden_2, out_dim)
         self.quantized = False
 
-        # scaling
-        self.embed.weight.data *= 1 << 12
-        self.linear_condition.weight.data *= 1 << 6
-        self.linear_2.weight.data *= 1 << 6
-        self.linear_3.weight.data *= 1 << 6
-        self.linear_4.weight.data *= 1 << 6
-
     def forward(self, x, condition):
         """
 
@@ -80,60 +75,83 @@ class Model(nn.Module):
         Returns:
             torch.Tensor: (batch, 4, out_dim)
         """
-        if self.quantized:
-            return self.q_forward(x, condition)
 
-        def hardtanh_(x, limit):
-            return F.hardtanh(x, -limit, limit, inplace=False)
+        def hardtanh_(x, limit, p):
+            if self.quantized:
+                return F.hardtanh(x, -limit, limit, inplace=True)
+            else:
+                return F.hardtanh(x, -limit / (1 << p), limit / (1 << p), inplace=False)
+
+        def scale(x, p):
+            if self.quantized:
+                return torch.round(x * 2 ** p)
+            else:
+                return x
 
         batch_size = x.shape[0]
         x = torch.where(x != -100, x, self.features)
 
         # (1) [batch, 4, length] -> [batch, 4, 256]
         x = self.embed(x.view(batch_size * 4, -1)).view(batch_size, 4, self.hidden_1)
-        x = hardtanh_(x, 127 * (1 << 5))                       # scale = 2^12, max = (2^7-1)2^5
+        x = hardtanh_(x, 127 * (1 << 5), 12)                   # scale = 2^12, max = (2^7-1)2^5
 
         # (2) [batch, length] -> [batch, 256]
-        condition = hardtanh_(self.embed(condition), 1 << 12)  # scale = 2^12, max = 2^12
+        condition = hardtanh_(self.embed(condition), 1 << 12, 12)  # scale = 2^12, max = 2^12
         condition = condition + x.sum(1)                       # scale = 2^12, max = (2^7-1)2^8
-        condition /= 1 << 8                                    # scale = 2^4,  max = 2^7-1
+        condition = scale(condition, -8)                       # scale = 2^4,  max = 2^7-1
 
         # (3) [batch, 256] -> [batch, 32]
         condition = self.linear_condition(condition)           # scale = 2^10
-        condition = hardtanh_(condition, 127 * (1 << 3))       # scale = 2^10, max = (2^7-1)2^3
-        condition *= 1 << 3                                    # scale = 2^13, max = (2^7-1)2^6
+        condition = hardtanh_(condition, 127 * (1 << 3), 10)   # scale = 2^10, max = (2^7-1)2^3
+        condition = scale(condition, 3)                        # scale = 2^13, max = (2^7-1)2^6
 
         # (4) [batch, 4, 256] -> [batch, 4, 32]
-        x /= 1 << 5                                            # scale = 2^7,  max = 2^7-1
+        x = scale(x, -5)                                       # scale = 2^7,  max = 2^7-1
         x = self.linear_2(x)                                   # scale = 2^13
-        x = hardtanh_(x, 127 * (1 << 6))                       # scale = 2^13, max = (2^7-1)2^6
+        x = hardtanh_(x, 127 * (1 << 6), 13)                   # scale = 2^13, max = (2^7-1)2^6
         x = x + condition.unsqueeze(1)                         # scale = 2^13, max = (2^7-1)2^7
-        x /= 1 << 7                                            # scale = 2^6,  max = 2^7-1
+        x = scale(x, -7)                                       # scale = 2^6,  max = 2^7-1
 
         # (5) [batch, 4, 32] -> [batch, 4, 32]
         x = self.linear_3(x)                                   # scale = 2^12
-        x = hardtanh_(x, 127 * (1 << 5))                       # scale = 2^12, max = (2^7-1)2^5
-        x /= 1 << 5                                            # scale = 2^7,  max = 2^7-1
+        x = hardtanh_(x, 127 * (1 << 5), 12)                   # scale = 2^12, max = (2^7-1)2^5
+        x = scale(x, -5)                                       # scale = 2^7,  max = 2^7-1
 
         # (6) [batch, 4, 32] -> [batch, 4, out_dim]
         x = self.linear_4(x)                                   # scale = 2^13
-        x /= 1 << 13                                           # scale = 1
+        if self.quantized:
+            x /= 1 << 13  # float に変換                        # scale = 1
 
         return x
 
     def quantize(self):
-        from copy import deepcopy
         qmodel = deepcopy(self)
+        qmodel.quantized = True
 
-        # TODO
+        # scaling
+        def scale(params, p):
+            params.data = torch.round(params.data * (1 << p))
+        scale(qmodel.embed.weight, 12)
+        scale(qmodel.linear_condition.weight, 6)
+        scale(qmodel.linear_condition.bias, 6)
+        scale(qmodel.linear_2.weight, 6)
+        scale(qmodel.linear_2.bias, 6)
+        scale(qmodel.linear_3.weight, 6)
+        scale(qmodel.linear_3.bias, 6)
+        scale(qmodel.linear_4.weight, 6)
+        scale(qmodel.linear_4.bias, 6)
+
         return qmodel
 
-    def q_forward(self, x, condition):
-        batch_size = x.shape[0]
-        x = torch.where(x != -100, x, self.features)
+    def dump(self, fp=None):
+        for name, params in self.named_parameters():
+            layer, weight_bias = name.split(".")
+            left = f"model.{layer}.parameters.{weight_bias}.Ravel()"
 
-        # TODO
-        return x
+            p = params.detach().numpy().ravel().astype(int)
+            right = f"array<float,{len(p)}>" + "{" + ",".join(map(str, p)) + "}"
+
+            print(f"{left}={right};", file=fp)
 
 
 def soft_cross_entropy(pred, target):
