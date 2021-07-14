@@ -171,7 +171,7 @@ int MctsAgent::Node::ChooseMove() {
     return 0;
 }
 
-bool MctsAgent::Node::do_empty_cell() const {
+bool MctsAgent::Node::DoInitCell() const {
     if (n_children > 0 and empty_cell.size() == 0) {
         return false;
     }
@@ -235,7 +235,7 @@ int MctsAgent::Node::Move(const int& idx_move, const int& idx_agent) {
     }
     else {
         ASSERT_RANGE(idx_agent, 0, 1);
-        if(!do_empty_cell()) {
+        if(!DoInitCell()) {
             InitCell();
         }
         return empty_cell[idx_move];
@@ -253,12 +253,18 @@ MctsAgent::Node& MctsAgent::Node::KthChildren(Stack<Node, BIG>& node_buffer, Sta
                 if (state.geese[i].size() == 0) {
                     agent_action[i] = 0;
                 }
+                else {
+                    agent_action[i] = Move(k, i);
+                }
             }
             else {
-
+                agent_action[0] = Move(k, 0);
             }
         }
-        // node_buffer.emplace(state.NextState(k));
+        auto nextstate = state.NextState(node_type, agent_action);
+        auto nextnode = Node(nextstate, children_buffer);
+        node_buffer.emplace(nextnode);
+        child = children_buffer[children_offset + k] = &node_buffer.back();
     }
     return *child;
 }

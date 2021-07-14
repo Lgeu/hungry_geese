@@ -56,7 +56,7 @@ struct MctsAgent {
         // 例の式を使って (食べ物のノードの場合はランダムに) 手を選ぶ  // 手の全パターンをひとつの値で表す。全員が 3 方向に移動できるなら 0 から 80 までの値をとる。Move メソッドで具体的な手に変換できる
         int ChooseMove();
         // InitCell()が呼び出されたかどうか
-        bool do_empty_cell() const;
+        bool DoInitCell() const;
         // empty_cellを求める
         void InitCell();
         // idx_move に対応する idx_agent 番目のエージェントの手を返す
