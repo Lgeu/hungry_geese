@@ -1200,7 +1200,7 @@ struct Evaluator {
     Model<feature::NN_INPUT_DIM + 1, 5, 256, 32, true> model;  // Python 側の都合でひとつ多く持つ
     Evaluator() {
         // モデルのパラメータ設定
-        //#include parameters.cpp
+        #include "parameters.cpp"
         // TODO
     }
     template<class T, int max_size>
@@ -1216,9 +1216,9 @@ struct Evaluator {
     }
 };
 
-}// namespace evaluation_function
+} // namespace evaluation_function
 
-
+/*
 namespace tree_search {
 using namespace std;
 struct Duct {
@@ -1333,6 +1333,15 @@ struct Duct {
 
 };
 }
+*/
+
+namespace test {
+void TestModel() {
+    // TODO
+
+}
+
+}  // namespace test
 
 GreedyAgent::GreedyAgent() {}
 
