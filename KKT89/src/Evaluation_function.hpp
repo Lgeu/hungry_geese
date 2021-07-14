@@ -476,7 +476,7 @@ struct Evaluator{
     GeeseNet<> model;
     Evaluator(){
         // パラメータ設定
-        #include "EvalParameters.hpp"
+        // #include "EvalParameters.hpp"
     }
     template<class T, int max_size>
     using Stack = Stack<T, max_size>;
