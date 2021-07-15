@@ -112,14 +112,12 @@ void Simulator::run() {
             mTimer.stop();
 
             // 残り時間の計算
-            if (i > 0) {
-                stage.mRemainingTime[j] = mGame.mStages[i-1].mRemainingTime[j];
-            }
             float get_time = mTimer.elapsedSec();
             get_time = 1.0 - get_time;
             if (get_time < 0) {
                 stage.mRemainingTime[j] += get_time;
             }
+            mGame.mStages[i+1].mRemainingTime[j] = stage.mRemainingTime[j];
         }
 
         // 着手
@@ -130,6 +128,7 @@ void Simulator::run() {
 
             // 既に脱落している場合
             if (!goose.isSurvive()) {
+                nextstage.mLastActions[j] = Action::NORTH;
                 nextstage.mGeese[j].setIsSurvive(false);
                 continue;
             }
@@ -449,8 +448,11 @@ void Simulator::printKif() const {
                 file_out << " " << feature;
             }
             file_out << std::endl;
-            break;
+            goto end_print_feature;
         }
+        // 生きてるやつがいなかった場合の処理
+        for (int i = 0; i < 5; i++) file_out << 0 << std::endl;
+        end_print_feature:;
     }
 
     // 最終順位の出力
