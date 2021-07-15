@@ -201,7 +201,9 @@ namespace F {
         auto c = ma + logf(s);
         for (auto&& v : input) v = expf(v - c);
     }
-
+    inline float Sigmoid(const float& input) {
+        return 1.0f / (1.0f + expf(-input));
+    }
 }
 
 template<int n_features>
@@ -478,16 +480,44 @@ struct Model<in_dim, out_dim, hidden_1, hidden_2, true> {
     }
 
     template<class Vector1, class Vector2>  // Stack<int, n> とか
-    auto Predict(const array<Vector1, 4>& agent_features, const Vector2& condition_features) const {
+    auto Predict(const array<Vector1, 4>& agent_features, const Vector2& condition_features, const array<int, 4>& rank) const {
         struct PolicyValue {
-            float value;
-            array<float, 4> policy;
+            float value;            // 盤面の評価値 (4.0 - 予測順位) [0.0, 3.0]
+            array<float, 4> policy; // 手の評価値 (予測される子の n の割合) [0.0, 1.0]
         };
+        static auto model_out = Matrix<float, 4, 5>();
         auto res = array<PolicyValue, 4>();
-        static auto model_out = Matrix<float, 4, out_dim>();
         Forward(agent_features, condition_features, model_out);
         static_assert(sizeof(res) == sizeof(model_out));
-        memcpy(&res, &model_out, sizeof(res));  // 危険
+        memcpy(&res, &model_out, sizeof(res));  // 危険  // value は移す必要がないけど面倒なので
+        // value の処理
+        for (int a = 0; a < 3; a++) {
+            for (int b = a + 1; b < 4; b++) {
+                if (rank[a] > 0 || rank[b] > 0) {  // どちらかが既に脱落している場合
+                    if (rank[a] < rank[b]) {
+                        res[a].value++;
+                    }
+                    else if (rank[a] == rank[b]) {
+                        res[a].value += 0.5f;
+                        res[b].value += 0.5f;
+                    }
+                    else {
+                        res[b].value++;
+                    }
+                }
+                else {
+                    const auto predicted_win_rate = F::Sigmoid(model_out[a][0] - model_out[b][0]);
+                    res[a].value += predicted_win_rate;
+                    res[b].value += 1.0f - predicted_win_rate;
+                }
+            }
+        }
+        ASSERT(abs(res[0].value + res[1].value + res[2].value + res[3].value - 6.0f) <= 1e-3f, "value の合計は 6 になるはずだよ");
+        // policy の処理
+        for (int i = 0; i < 4; i++) {
+            F::Softmax_(res[i].policy);
+        }
+
         return res;
     }
 
@@ -1205,14 +1235,39 @@ struct Evaluator {
     }
     template<class T, int max_size>
     using Stack = nagiss_library::Stack<T, max_size>;
-    auto evaluate(const array<Stack<int, 77>, 4>& geese, const array<int, 2>& foods, const int& current_step) {
+    auto evaluate(const array<Stack<int, 77>, 4>& geese, const array<int, 2>& foods, const int& current_step, const array<int, 4>& rank) {
+        // rank: 決まったやつは順位、決まってないやつは 0 以下
+        struct PolicyValue {
+            float value;            // 盤面の評価値 (4.0 - 予測順位) [0.0, 3.0]
+            array<float, 4> policy; // 手の評価値 (予測される子の n の割合) [0.0, 1.0]
+        };
+        // 既に勝敗が決しているならモデルを通さない
+        auto res = array<PolicyValue, 4>();
+        if (rank[0] > 0 && rank[1] > 0 && rank[2] > 0 && rank[3] > 0) {
+            for (int a = 0; a < 3; a++) {
+                for (int b = a + 1; b < 4; b++) {
+                    if (rank[a] < rank[b]) {
+                        res[a].value++;
+                    }
+                    else if (rank[a] == rank[b]) {
+                        res[a].value += 0.5f;
+                        res[b].value += 0.5f;
+                    }
+                    else {
+                        res[b].value++;
+                    }
+                }
+            }
+            ASSERT(res[0].value + res[1].value + res[2].value + res[3].value == 6.0f, "value の合計は 6 になるはずだよ");
+            return res;
+        }
+
         // モデルへの入出力用変数
         static auto agent_features = array<Stack<int, 100>, 4>();
         static auto condition_features = Stack<int, 100>();
-        static auto output = Matrix<float, 4, 5>();
-
         feature::ExtractFeatures(geese, foods, current_step, agent_features, condition_features);
-        return model.Predict(agent_features, condition_features);
+        memcpy(&res, &model.Predict(agent_features, condition_features, rank), sizeof(res));  // 危険
+        return res;
     }
 };
 
