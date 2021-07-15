@@ -13,30 +13,30 @@ using namespace std;
 template<class T, int dim1, int dim2>
 struct Matrix {
     array<array<T, dim2>, dim1> data;
-    array<T, dim2>& operator[](const int& idx) {
+    constexpr inline array<T, dim2>& operator[](const int& idx) {
         return data[idx];
     }
-    const array<T, dim2>& operator[](const int& idx) const {
+    constexpr inline const array<T, dim2>& operator[](const int& idx) const {
         return data[idx];
     }
-    array<T, dim1* dim2>& Ravel() {
+    constexpr inline array<T, dim1* dim2>& Ravel() {
         union U {
             array<array<T, dim2>, dim1> data;
             array<T, dim1* dim2> raveled;
         };
         return ((U*)&data)->raveled;
     }
-    const array<T, dim1* dim2>& Ravel() const {
+    constexpr inline const array<T, dim1* dim2>& Ravel() const {
         union U {
             array<array<T, dim2>, dim1> data;
             array<T, dim1* dim2> raveled;
         };
         return ((U*)&data)->raveled;
     }
-    void Fill(const T& fill_value) {
+    constexpr inline void Fill(const T& fill_value) {
         fill(Ravel().begin(), Ravel().end(), fill_value);
     }
-    inline auto& operator+=(const Matrix& rhs) {
+    constexpr inline inline auto& operator+=(const Matrix& rhs) {
         for (int i = 0; i < dim1 * dim2; i++) Ravel()[i] += rhs.Ravel()[i];
         return *this;
     }
@@ -178,19 +178,23 @@ namespace F {
             value = max(value, (T)0);
         }
     }
-    template<typename T, unsigned siz>
+    template<typename T, size_t siz>
     inline void Hardtanh_(array<T, siz>& input, const T& min_val, const T& max_val) {
         for (auto&& value : input) {
             value = max(min_val, min(max_val, value));
         }
     }
-    template<class Tensor>
-    inline void Hardtanh_(Tensor& input, const typename remove_reference<decltype(input.Ravel()[0])>::type& min_val, const typename remove_reference<decltype(input.Ravel()[0])>::type& max_val) {
+    template<class Container, typename T>
+    inline void Hardtanh_(Container& input, const T& min_val, const T& max_val) {
         Hardtanh_(input.Ravel(), min_val, max_val);
+    }
+    template<typename T, size_t siz>
+    inline void Hardtanh_(array<T, siz>& input, const T& max_abs_val) {
+        Hardtanh_(input, (T)-max_abs_val, max_abs_val);
     }
     template<class Container, typename T>
     inline void Hardtanh_(Container& input, const T& max_abs_val) {
-        Hardtanh_(input, -max_abs_val, max_abs_val);
+        Hardtanh_(input.Ravel(), max_abs_val);
     }
     template<class T, size_t siz>
     inline void Softmax_(array<T, siz>& input) {
@@ -334,17 +338,17 @@ struct EmbeddingBag {
 
 template<int in_dim, int out_dim = 5, int hidden_1 = 256, int hidden_2 = 32, bool quantize = false>
 struct Model {
-    EmbeddingBag<in_dim, hidden_1> embed;
+    EmbeddingBag<in_dim + 1, hidden_1> embed;  // in_dim に +1 するのは Python 側の都合
     Linear<hidden_1, hidden_2> linear_condition;
     Linear<hidden_1, hidden_2> linear_2;
     Linear<hidden_2, hidden_2> linear_3;
     Linear<hidden_2, out_dim> linear_4;
 
     // コンストラクタ
-    Model() : embed(), linear_condition(), linear_2(), linear_3(), linear_4() {}
+    inline Model() : embed(), linear_condition(), linear_2(), linear_3(), linear_4() {}
 
     template<class Vector1, class Vector2>  // Stack<int, n> とか
-    void Forward(const array<Vector1, 4>& agent_features, const Vector2& condition_features, Matrix<float, 4, out_dim>& output) {
+    void Forward(const array<Vector1, 4>& agent_features, const Vector2& condition_features, Matrix<float, 4, out_dim>& output) const {
         // (1)
         static auto agent_embedded = Matrix<float, 4, hidden_1>();
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
@@ -397,14 +401,14 @@ struct Model {
 // 特殊化
 template<int in_dim, int out_dim, int hidden_1, int hidden_2>
 struct Model<in_dim, out_dim, hidden_1, hidden_2, true> {
-    EmbeddingBag<in_dim, hidden_1, short> embed;
+    EmbeddingBag<in_dim + 1, hidden_1, short> embed;
     Linear<hidden_1, hidden_2, signed char, short> linear_condition;
     Linear<hidden_1, hidden_2, signed char, short> linear_2;
     Linear<hidden_2, hidden_2, signed char, short> linear_3;
     Linear<hidden_2, out_dim, signed char, short> linear_4;
 
     // コンストラクタ
-    Model() : embed(), linear_condition(), linear_2(), linear_3(), linear_4() {}
+    constexpr inline Model() : embed(), linear_condition(), linear_2(), linear_3(), linear_4() {}
 
     template<class Vector1, class Vector2>  // Stack<int, n> とか
     void Forward(const array<Vector1, 4>& agent_features, const Vector2& condition_features, Matrix<float, 4, out_dim>& output) const {
@@ -512,7 +516,7 @@ struct Model<in_dim, out_dim, hidden_1, hidden_2, true> {
                 }
             }
         }
-        ASSERT(abs(res[0].value + res[1].value + res[2].value + res[3].value - 6.0f) <= 1e-3f, "value の合計は 6 になるはずだよ");
+        ASSERT(abs(res[0].value + res[1].value + res[2].value + res[3].value - 6.0f) <= 1e-2f, "value の合計は 6 になるはずだよ");
         // policy の処理
         for (int i = 0; i < 4; i++) {
             F::Softmax_(res[i].policy);
@@ -1227,8 +1231,8 @@ void ExtractFeatures(
 }  // namespace feature
 
 struct Evaluator {
-    Model<feature::NN_INPUT_DIM + 1, 5, 256, 32, true> model;  // Python 側の都合でひとつ多く持つ
-    Evaluator() {
+    Model<feature::NN_INPUT_DIM, 5, 256, 32, true> model;  // Python 側の都合でひとつ多く持つ
+    constexpr Evaluator() {
         // モデルのパラメータ設定
         #include "parameters.cpp"
         // TODO
@@ -1266,12 +1270,52 @@ struct Evaluator {
         static auto agent_features = array<Stack<int, 100>, 4>();
         static auto condition_features = Stack<int, 100>();
         feature::ExtractFeatures(geese, foods, current_step, agent_features, condition_features);
-        memcpy(&res, &model.Predict(agent_features, condition_features, rank), sizeof(res));  // 危険
+        auto preds = model.Predict(agent_features, condition_features, rank);
+        memcpy(&res, &preds, sizeof(res));  // 危険
         return res;
     }
 };
 
-} // namespace evaluation_function
+namespace test {
+auto ev = evaluation_function::Evaluator();
+void TestModel() {
+    // TODO
+    using namespace std;
+    static auto agent_features = array<Stack<int, 100>, 4>{
+        Stack<int, 100>{},
+    };
+    static auto condition_features = Stack<int, 100>{};
+    static auto output = Matrix<float, 4, 5>();
+    ev.model.Forward(agent_features, condition_features, output);
+    output.Print();
+    //
+}
+void TestEvaluator() {
+    // TODO
+    using namespace std;
+    auto geese = array<nagiss_library::Stack<int, 77>, 4>();
+    auto foods = array<int, 2>{76, 75};
+    auto current_step = 123;
+    auto rank = array<int, 4>{0, 0, 0, 0};
+    for (int a = 0; a < 4; a++) {
+        geese[a].push(a * 2 + 1);
+        geese[a].push(a * 2);
+        geese[a].push(a * 2 + 11);
+    }
+    auto t0 = nagiss_library::time();
+    auto s = 0.0f;
+    for (int i = 0; i < 100; i++) {
+        current_step = i % 199;
+        auto res = ev.evaluate(geese, foods, current_step, rank);
+        s += res[0].value;
+    }
+    cerr << "time = " << nagiss_library::time() - t0 << endl;
+    cerr << s << endl;
+}
+
+}  // namespace test
+
+}  // namespace evaluation_function
 
 /*
 namespace tree_search {
@@ -1390,13 +1434,7 @@ struct Duct {
 }
 */
 
-namespace test {
-void TestModel() {
-    // TODO
 
-}
-
-}  // namespace test
 
 GreedyAgent::GreedyAgent() {}
 

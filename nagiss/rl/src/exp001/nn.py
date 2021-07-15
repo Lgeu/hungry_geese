@@ -200,14 +200,23 @@ class Model(nn.Module):
         assert self.quantized
         for name, params in self.named_parameters():
             layer, weight_bias = name.split(".")
-            left = f"model.{layer}.parameters.{weight_bias}.Ravel()"
-
-            p = params.detach().numpy().ravel().astype(int)
             if layer == "embed":
-                typ = "short"
+                for i, dat in enumerate(params):
+                    left = f"model.{layer}.parameters.{weight_bias}[{i}]"
+                    typ = "short"
+                    p = dat.detach().numpy().ravel().astype(int)
+                    right = f"array<{typ},{len(p)}>" + "{" + ",".join(map(str, p)) + "}"
+                    print(f"{left}={right};", file=fp)
             else:
-                typ = "signed char"
-            right = f"array<{typ},{len(p)}>" + "{" + ",".join(map(str, p)) + "}"
+                ravel = ".Ravel()" if weight_bias != "bias" else ""
+                left = f"model.{layer}.parameters.{weight_bias}{ravel}"
+
+                p = params.detach().numpy().ravel().astype(int)
+                if layer == "embed" or weight_bias == "bias":
+                    typ = "short"
+                else:
+                    typ = "signed char"
+                right = f"array<{typ},{len(p)}>" + "{" + ",".join(map(str, p)) + "}"
 
             print(f"{left}={right};", file=fp)
 
@@ -316,7 +325,7 @@ if __name__ == "__main__":
     print("loaded!")
 
     # モデル、最適化手法、損失関数
-    model = Model(features=N_FEATURES+1)
+    model = Model(features=N_FEATURES)
     model.to(device)
     #optimizer = torch.optim.SGD(model.parameters(), lr=sgd_learning_rate, momentum=0.9)
     optimizer = torch.optim.Adam(model.parameters(), lr=adam_learning_rate, amsgrad=True)

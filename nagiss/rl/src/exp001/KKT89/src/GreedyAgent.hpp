@@ -8,6 +8,10 @@ namespace evaluation_function {
 namespace feature {
 void PrintFeatureBoundary();
 }
+namespace test {
+void TestModel();
+void TestEvaluator();
+}
 }
 
 struct GreedyAgent {

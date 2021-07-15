@@ -5,7 +5,9 @@
 #include <chrono>
 
 int main(int aArgc, const char* aArgv[]) {
-    hungry_geese::evaluation_function::feature::PrintFeatureBoundary();
+    //hungry_geese::evaluation_function::feature::PrintFeatureBoundary();
+
+    hungry_geese::evaluation_function::test::TestEvaluator();
 
     static auto fSim = hungry_geese::Simulator();
     bool willPrintKif = false;
