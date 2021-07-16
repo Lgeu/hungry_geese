@@ -15,6 +15,8 @@ struct Duct {
     Duct();
 
     constexpr static int BIG = 100000;
+    void Setprintlog(bool f);
+    bool printlog = false;
 
     // Point
     struct Cpoint {
@@ -59,6 +61,8 @@ struct Duct {
         static void Simulate(State &state, unsigned char agent_action);
         // 終局状態か(プレイヤー0が生存しているか)
         bool Finished() const;
+        // デバック用
+        void Debug() const; 
     };
 
     // Node

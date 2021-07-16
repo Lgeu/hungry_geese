@@ -8,6 +8,12 @@ namespace hungry_geese {
 Duct::Duct() : node_buffer(), children_buffer(), model() {}
 
 //------------------------------------------------------------------------------
+// Ductのログをデバック出力
+void Duct::Setprintlog(bool f) {
+    printlog = f;
+}
+
+//------------------------------------------------------------------------------
 // Point
 Duct::Cpoint::Cpoint() : mC() {}
 
@@ -210,6 +216,14 @@ bool Duct::State::Finished() const {
     else {
         return false;
     }
+}
+
+void Duct::State::Debug() const {
+    std::cout << "Geese :";
+    for (int i = 0; i < boundary[4]; ++i) {
+        std::cout << " " << geese[i].Id();
+    }
+    std::cout << std::endl;
 }
 
 //------------------------------------------------------------------------------
@@ -430,6 +444,12 @@ void Duct::InitDuct(hungry_geese::Stage aStage, int aIndex) {
     auto node = Duct::Node(state, children_buffer);
     node_buffer.clear();
     node_buffer.push(node);
+    if (printlog) {
+        // ターン情報
+        std::cout << "Turn : " << aStage.mTurn << " " << "Agent : " << aIndex << std::endl;
+        // State
+        state.Debug();
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -509,8 +529,8 @@ void Duct::Iterate() {
             if (v->state.goose_size(idx_agent) == 0) {
                 continue;
             }
-            unsigned char opt_action = k % 4;
-            k /= 4; 
+            unsigned char opt_action = k % 3;
+            k /= 3; 
             unsigned char ith_idx_lastmove = 0;
             if (v->state.last_actions & (1 << (idx_agent + idx_agent))) ith_idx_lastmove++;
             if (v->state.last_actions & (1 << (idx_agent + idx_agent + 1))) ith_idx_lastmove+=2;
