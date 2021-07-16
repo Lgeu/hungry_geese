@@ -68,9 +68,6 @@ struct Duct {
         std::array<std::array<float, 4>, 4> GetPolicy() const;
         std::array<std::array<float, 4>, 4> GetWorth() const;
 
-        // 空きマスをstackで管理する
-        // Stack<int, 77> empty_cell;
-
         Node();
 
         Node(const State& aState, Stack<Node*, BIG>& children_buffer);
@@ -78,12 +75,9 @@ struct Duct {
         bool Expanded() const; // 既にモデルによって評価されているかを返す
         // 例の式を使って (食べ物のノードの場合はランダムに) 手を選ぶ  // 手の全パターンをひとつの値で表す。全員が 3 方向に移動できるなら 0 から 80 までの値をとる。Move メソッドで具体的な手に変換できる
         int ChooseMove();
-        // InitCell()が呼び出されたかどうか
-        bool DoInitCell() const;
-        // empty_cellを求める
-        void InitCell();
         // idx_move に対応する idx_agent 番目のエージェントの手を返す
-        int Move(const int& idx_move, const int& idx_agent);
+        // KthChildrenの中でMoveと同等の実装しました
+        // int Move(const int& idx_move, const int& idx_agent);
         // k 番目の行動によって遷移する子ノードを返す 
         // その子ノードが初めて遷移するものだった場合、新たに領域を確保してノードを作る
         Node& KthChildren(Stack<Node, BIG>& node_buffer, Stack<Node*, BIG>& children_buffer, const int& k);

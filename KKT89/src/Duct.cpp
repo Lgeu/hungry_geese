@@ -71,7 +71,7 @@ Duct::State::State(hungry_geese::Stage aStage, int aIndex) : geese(), boundary()
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
             if (LastActions[i] == Idx_to_Actions[j]) {
-                last_actions += (1<<i) * j;
+                last_actions += (1 << (i+i)) * j;
             }
         }
     }
@@ -220,100 +220,144 @@ int Duct::Node::ChooseMove() {
     return 0;
 }
 
-bool Duct::Node::DoInitCell() const {
-    // if (n_children > 0 and empty_cell.size() == 0) {
-    //     return false;
-    // }
-    // else {
-    //     return true;
-    // }
-}
-
-void Duct::Node::InitCell() {
-    // static std::array<bool, 77> used;
-    // for (int i = 0; i < 77; ++i) {
-    //     used[i] = false;
-    // }
-    // auto geese = state.geese;
-    // for (int i = 0; i < 4; ++i) {
-    //     for (int j = 0; j < geese[i].size(); ++j) {
-    //         used[geese[i][j].id] = true;
-    //     }
-    // }
-    // auto foods = state.foods;
-    // for (int i = 0; i < 2; ++i) {
-    //     if (foods[i].id != -1) {
-    //         used[foods[i].id] = true;
-    //     }
-    // }
-    // for (int i = 0; i < 77; ++i) {
-    //     if (!used[i]) {
-    //         empty_cell.push(i);
-    //     }
-    // }
-}
-
-int Duct::Node::Move(const int& idx_move, const int& idx_agent) {
-    ASSERT_RANGE(idx_move, 0, n_children);
-    if (node_type == NodeType::AGENT_NODE) {
-        int cur = idx_move;
-        int res = -1;
-        for (int i = 0; i < 4; ++i) {
-            if (state.goose_size((unsigned char) i) == 0) {
-                continue;
-            }
-            // if (i == idx_agent) {
-            //     int idx = cur % 3;
-            //     for (int j = 0; j < 4; ++j) {
-            //         if ((state.last_actions[idx_agent] ^ 2) == j) {
-            //             continue;
-            //         }
-            //         if(idx == 0) {
-            //             res = j;
-            //             break;
-            //         }
-            //         else {
-            //             idx--;
-            //         }
-            //     }
-            // }
-            // cur /= 3;
-        }
-        ASSERT_RANGE(res, 0, 4);
-        return res;
-    }
-    // else {
-    //     ASSERT_RANGE(idx_agent, 0, 1);
-    //     if(!DoInitCell()) {
-    //         InitCell();
-    //     }
-    //     return empty_cell[idx_move];
-    // }
-}
+// int Duct::Node::Move(const int& idx_move, const int& idx_agent) {
+//     ASSERT_RANGE(idx_move, 0, n_children);
+//     if (node_type == NodeType::AGENT_NODE) {
+//         int cur = idx_move;
+//         int res = -1;
+//         for (int i = 0; i < 4; ++i) {
+//             if (state.goose_size((unsigned char) i) == 0) {
+//                 continue;
+//             }
+//             // if (i == idx_agent) {
+//             //     int idx = cur % 3;
+//             //     for (int j = 0; j < 4; ++j) {
+//             //         if ((state.last_actions[idx_agent] ^ 2) == j) {
+//             //             continue;
+//             //         }
+//             //         if(idx == 0) {
+//             //             res = j;
+//             //             break;
+//             //         }
+//             //         else {
+//             //             idx--;
+//             //         }
+//             //     }
+//             // }
+//             // cur /= 3;
+//         }
+//         ASSERT_RANGE(res, 0, 4);
+//         return res;
+//     }
+//     // else {
+//     //     ASSERT_RANGE(idx_agent, 0, 1);
+//     //     if(!DoInitCell()) {
+//     //         InitCell();
+//     //     }
+//     //     return empty_cell[idx_move];
+//     // }
+// }
 
 Duct::Node& Duct::Node::KthChildren(Stack<Node, BIG>& node_buffer, Stack<Node*, BIG>& children_buffer, const int& k) {
     ASSERT_RANGE(k, 0, n_children);
     Node* child = children_buffer[children_offset + k];
     if (child == nullptr) {
         // 領域を確保
-        static std::array<int, 4> agent_action;
-        for (int i = 0; i < 4; ++i) {
-            if (node_type == NodeType::AGENT_NODE) {
-                // if (state.geese[i].size() == 0) {
-                //     agent_action[i] = 0;
-                // }
-                // else {
-                //     agent_action[i] = Move(k, i);
-                // }
+        unsigned char agent_action = 0;
+        State nextstate;
+        if (node_type == NodeType::AGENT_NODE) {
+            unsigned char idx_move = k;
+            for (int i = 0; i < 4; ++i) {
+                if (state.goose_size((unsigned char) i) == 0) {
+                    continue;
+                }
+                else {
+                    unsigned char ith_idx_move = idx_move % 3;
+                    unsigned char ith_idx_lastmove = 0;
+                    if (state.last_actions & (1 << (i + i))) ith_idx_lastmove++;
+                    if (state.last_actions & (1 << (i + i + 1))) ith_idx_lastmove+=2;
+                    idx_move /= 3;
+                    for (int j = 0; j < 4; ++j) {
+                        if ((ith_idx_lastmove ^ 2) == j) {
+                            continue;
+                        }
+                        if (ith_idx_move == 0) {
+                            agent_action += (j << (i + i));
+                            break;
+                        }
+                        ith_idx_move--;
+                    }
+                }
             }
-            else {
-                agent_action[0] = Move(k, 0);
+            nextstate = state.NextState(node_type, agent_action, 0);
+        }
+        else {
+            nextstate = state;
+            static std::array<bool, 77> used;
+            for (int i = 0; i < 77; ++i) {
+                used[i] = false;
+            }
+            int empty_cell = 77 - state.boundary[4];
+            for (int i = 0; i < state.boundary[4]; ++i) {
+                used[state.geese[i].Id()] = true;
+            }
+            for (int i = 0; i < 2; ++i) {
+                if (state.foods[i].Id() != -1) {
+                    empty_cell--;
+                    used[state.foods[i].Id()] = true;
+                }
+            }
+            // 空きマスがN個あって、2つ空きマスを選ぶのはN*(N-1)/2
+            // k = [0,N*(N-1)/2) → 空きマス二つを選ぶ
+            int idx_move = k;
+            if (empty_cell < n_children) { // 2個選ぶ場合
+                for (int i = 0; i < 77; ++i) {
+                    if (used[i]) {
+                        continue;
+                    }
+                    if (idx_move < empty_cell) {
+                        nextstate.foods[0] = Cpoint(i);
+                        for (int j = i + 1; j < 77; ++j) {
+                            if (used[j]) {
+                                continue;
+                            }
+                            if (idx_move == 0) {
+                                nextstate.foods[1] = Cpoint(j);
+                                break;
+                            }
+                            else {
+                                idx_move--;
+                            }
+                        }
+                        break;
+                    }
+                    else {
+                        empty_cell--;
+                        idx_move -= empty_cell;
+                    }
+                }
+            }
+            else { // 1個選ぶ場合
+                for (int i = 0; i < 77; ++i) {
+                    if (used[i]) {
+                        continue;
+                    }
+                    if (idx_move == 0) {
+                        if (state.foods[0].Id() == -1) {
+                            nextstate.foods[0] = Cpoint(i);
+                        }
+                        else {
+                            nextstate.foods[1] = Cpoint(i);
+                        }
+                        break;
+                    }
+                    idx_move--;
+                }
             }
         }
-    //     auto nextstate = state.NextState(node_type, agent_action);
-    //     auto nextnode = Node(nextstate, children_buffer);
-    //     node_buffer.emplace(nextnode);
-    //     child = children_buffer[children_offset + k] = &node_buffer.back();
+        auto nextnode = Node(nextstate, children_buffer);
+        node_buffer.emplace(nextnode);
+        child = children_buffer[children_offset + k] = &node_buffer.back();
     }
     return *child;
 }
