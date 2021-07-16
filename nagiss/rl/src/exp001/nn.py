@@ -196,29 +196,20 @@ class Model(nn.Module):
 
         return qmodel
 
-    def dump(self, fp=None):
+    def dump(self, filename):
         assert self.quantized
-        for name, params in self.named_parameters():
-            layer, weight_bias = name.split(".")
-            if layer == "embed":
-                for i, dat in enumerate(params):
-                    left = f"model.{layer}.parameters.{weight_bias}[{i}]"
-                    typ = "short"
-                    p = dat.detach().numpy().ravel().astype(int)
-                    right = f"array<{typ},{len(p)}>" + "{" + ",".join(map(str, p)) + "}"
-                    print(f"{left}={right};", file=fp)
-            else:
-                ravel = ".Ravel()" if weight_bias != "bias" else ""
-                left = f"model.{layer}.parameters.{weight_bias}{ravel}"
-
-                p = params.detach().numpy().ravel().astype(int)
-                if layer == "embed" or weight_bias == "bias":
-                    typ = "short"
-                else:
-                    typ = "signed char"
-                right = f"array<{typ},{len(p)}>" + "{" + ",".join(map(str, p)) + "}"
-
-            print(f"{left}={right};", file=fp)
+        with open(filename, "wb") as f:
+            def write(params, dtype="int8"):
+                f.write(params.detach().numpy().ravel().astype(dtype).tobytes())
+            write(self.embed.weight, "int16")
+            write(self.linear_condition.weight)
+            write(self.linear_condition.bias, "int16")
+            write(self.linear_2.weight)
+            write(self.linear_2.bias, "int16")
+            write(self.linear_3.weight)
+            write(self.linear_3.bias, "int16")
+            write(self.linear_4.weight)
+            write(self.linear_4.bias, "int16")
 
 
 def soft_cross_entropy(pred, target):

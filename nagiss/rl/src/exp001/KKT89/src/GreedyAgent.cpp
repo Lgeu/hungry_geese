@@ -1,4 +1,5 @@
 ﻿#pragma once
+#define _CRT_SECURE_NO_WARNINGS
 #include "GreedyAgent.hpp"
 
 #include "library.hpp"
@@ -296,7 +297,7 @@ struct TorusConv2d {
 };
 
 template<int in_features, int out_features, typename dtype = float, typename out_dtype = float>
-struct Linear {
+struct alignas(32) Linear {
     struct Parameters {
         Matrix<dtype, out_features, in_features> weight;
         array<out_dtype, out_features> bias;
@@ -305,18 +306,40 @@ struct Linear {
     // コンストラクタ
     Linear() : parameters() {}
 
+    template<bool check_overflow=false>
     void Forward(const array<dtype, in_features>& input, array<out_dtype, out_features>& output) const {
         output = parameters.bias;
         for (int out_channel = 0; out_channel < out_features; out_channel++) {
             for (int in_channel = 0; in_channel < in_features; in_channel++) {
-                output[out_channel] += (out_dtype)input[in_channel] * (out_dtype)parameters.weight[out_channel][in_channel];
+                if (!check_overflow) {
+                    output[out_channel] += (out_dtype)input[in_channel] * (out_dtype)parameters.weight[out_channel][in_channel];
+                }
+                else {
+                    const out_dtype d = (out_dtype)input[in_channel] * (out_dtype)parameters.weight[out_channel][in_channel];
+                    if (d >= 0) {
+                        if (output[out_channel] > numeric_limits<out_dtype>::max() - d) {  // オーバーフロー
+                            output[out_channel] = numeric_limits<out_dtype>::max();
+                        }
+                        else {
+                            output[out_channel] += d;
+                        }
+                    }
+                    else {
+                        if (output[out_channel] < numeric_limits<out_dtype>::min() - d) {  // オーバーフロー
+                            output[out_channel] = numeric_limits<out_dtype>::min();
+                        }
+                        else {
+                            output[out_channel] += d;
+                        }
+                    }
+                }
             }
         }
     }
 };
 
 template<int num_embeddings, int embedding_dim, typename dtype = float>
-struct EmbeddingBag {
+struct alignas(32) EmbeddingBag {
     // mode="sum" のみ対応
     struct Parameters {
         Matrix<dtype, num_embeddings, embedding_dim> weight;
@@ -410,6 +433,24 @@ struct Model<in_dim, out_dim, hidden_1, hidden_2, true> {
     // コンストラクタ
     constexpr inline Model() : embed(), linear_condition(), linear_2(), linear_3(), linear_4() {}
 
+    inline void LoadParameters() {
+        FILE* fp;
+        fp = fopen("../src/parameters.bin", "rb");
+        if (fp == NULL) {
+            printf("parameters.bin が見つからないよ\n");
+            exit(1);
+        }
+        fread(&embed.parameters.weight, embed.parameters.weight.Ravel().size(), sizeof(short), fp);
+        fread(&linear_condition.parameters.weight, linear_condition.parameters.weight.Ravel().size(), sizeof(signed char), fp);
+        fread(&linear_condition.parameters.bias, linear_condition.parameters.bias.size(), sizeof(short), fp);
+        fread(&linear_2.parameters.weight, linear_2.parameters.weight.Ravel().size(), sizeof(signed char), fp);
+        fread(&linear_2.parameters.bias, linear_2.parameters.bias.size(), sizeof(short), fp);
+        fread(&linear_3.parameters.weight, linear_3.parameters.weight.Ravel().size(), sizeof(signed char), fp);
+        fread(&linear_3.parameters.bias, linear_3.parameters.bias.size(), sizeof(short), fp);
+        fread(&linear_4.parameters.weight, linear_4.parameters.weight.Ravel().size(), sizeof(signed char), fp);
+        fread(&linear_4.parameters.bias, linear_4.parameters.bias.size(), sizeof(short), fp);
+    }
+
     template<class Vector1, class Vector2>  // Stack<int, n> とか
     void Forward(const array<Vector1, 4>& agent_features, const Vector2& condition_features, Matrix<float, 4, out_dim>& output) const {
         // (1)
@@ -476,7 +517,7 @@ struct Model<in_dim, out_dim, hidden_1, hidden_2, true> {
         // (6)
         static auto before_out = Matrix<short, 4, out_dim>();
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
-            linear_4.Forward(hidden_state_2_8bit[idx_agents], before_out[idx_agents]);
+            linear_4.template Forward<true>(hidden_state_2_8bit[idx_agents], before_out[idx_agents]);
         }
         for (int dim = 0; dim < output.Ravel().size(); dim++) {
             output.Ravel()[dim] = (float)before_out.Ravel()[dim] / (float)(1 << 13);
@@ -1232,11 +1273,12 @@ void ExtractFeatures(
 
 struct Evaluator {
     Model<feature::NN_INPUT_DIM, 5, 256, 32, true> model;  // Python 側の都合でひとつ多く持つ
-    constexpr Evaluator() {
+    inline Evaluator() {
         // モデルのパラメータ設定
-        #include "parameters.cpp"
+        model.LoadParameters();
         // TODO
     }
+
     template<class T, int max_size>
     using Stack = nagiss_library::Stack<T, max_size>;
     auto evaluate(const array<Stack<int, 77>, 4>& geese, const array<int, 2>& foods, const int& current_step, const array<int, 4>& rank) {
@@ -1279,19 +1321,50 @@ struct Evaluator {
 namespace test {
 auto ev = evaluation_function::Evaluator();
 void TestModel() {
-    // TODO
     using namespace std;
-    static auto agent_features = array<Stack<int, 100>, 4>{
-        Stack<int, 100>{},
-    };
-    static auto condition_features = Stack<int, 100>{};
+    static auto agent_features = array<Stack<int, 100>, 4>();
+    for (const auto& v : { 0, 128, 256, 416, 512, 599, 620, 641, 662, 673, 787,
+        863, 750, 826, 819, 895, 912, 908, 1012, 1264, 1325, 1361,
+        1375, 1401, 1441, 1495, 1561, 1635, 1713, 1715, 1719, 1724, 1729,
+        1733, 1737, 1741, 1745, 1749, 1757, 1773, 1797, 1832, 1886, 1952,
+        2026 }) {
+        agent_features[0].push(v);
+    }
+    for (const auto& v : { 0, 128, 256, 384, 512, 599, 620, 641, 662, 673, 799,
+            875, 800, 876, 792, 868, 962, 947, 1012, 1264, 1325, 1361,
+            1375, 1401, 1441, 1495, 1561, 1635, 1713, 1714, 1719, 1723, 1729,
+            1733, 1737, 1741, 1745, 1751, 1763, 1779, 1802, 1836, 1886, 1952,
+            2026 }) {
+        agent_features[1].push(v);
+    }
+    for (const auto& v : { 0, 128, 288, 384, 512, 599, 620, 641, 662, 673, 759,
+            835, 786, 862, 818, 894, 922, 907, 1012, 1264, 1325, 1361,
+            1375, 1401, 1441, 1495, 1561, 1635, 1713, 1715, 1720, 1724, 1729,
+            1733, 1737, 1741, 1745, 1749, 1755, 1769, 1792, 1832, 1886, 1952,
+            2026 }) {
+        agent_features[2].push(v);
+    }
+    for (const auto& v : { 0, 128, 256, 384, 512, 599, 620, 641, 662, 673, 767,
+            843, 794, 870, 768, 844, 930, 915, 1012, 1264, 1325, 1361,
+            1375, 1401, 1441, 1495, 1561, 1635, 1713, 1714, 1720, 1725, 1729,
+            1733, 1737, 1741, 1745, 1751, 1761, 1771, 1793, 1832, 1886, 1952,
+            2026 }) {
+        agent_features[3].push(v);
+    }
+    static auto condition_features = Stack<int, 100>();
+    for (const auto& v : { 2106, 2109, 2183 }) {
+        condition_features.push(v);
+    }
     static auto output = Matrix<float, 4, 5>();
     ev.model.Forward(agent_features, condition_features, output);
     output.Print();
-    //
+    //[[-6.4945, -0.4498,  0.0785, -0.0306,  0.3376],
+    // [ 6.4957,  0.4489, -0.0787,  0.0302, -0.3423] ,
+    // [ 2.8075,  0.2148,  0.1410,  0.1471, -0.2407],
+    // [-1.4518, -0.1351,  0.2001,  0.2734, -0.0514]]
+    // https://www.kaggle.com/nagiss/geese-007-nn-prepare-training?scriptVersionId=68291337
 }
 void TestEvaluator() {
-    // TODO
     using namespace std;
     auto geese = array<nagiss_library::Stack<int, 77>, 4>();
     auto foods = array<int, 2>{76, 75};
@@ -1304,7 +1377,7 @@ void TestEvaluator() {
     }
     auto t0 = nagiss_library::time();
     auto s = 0.0f;
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 100000; i++) {
         current_step = i % 199;
         auto res = ev.evaluate(geese, foods, current_step, rank);
         s += res[0].value;

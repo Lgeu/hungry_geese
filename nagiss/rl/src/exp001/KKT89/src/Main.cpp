@@ -7,7 +7,8 @@
 int main(int aArgc, const char* aArgv[]) {
     //hungry_geese::evaluation_function::feature::PrintFeatureBoundary();
 
-    hungry_geese::evaluation_function::test::TestEvaluator();
+    //hungry_geese::evaluation_function::test::TestEvaluator();
+    hungry_geese::evaluation_function::test::TestModel();
 
     static auto fSim = hungry_geese::Simulator();
     bool willPrintKif = false;
