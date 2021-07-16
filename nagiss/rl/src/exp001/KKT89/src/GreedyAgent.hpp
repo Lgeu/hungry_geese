@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <intrin0.h>
 #include "AgentResult.hpp"
 #include "Stage.hpp"
 

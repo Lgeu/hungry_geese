@@ -308,28 +308,89 @@ struct alignas(32) Linear {
 
     template<bool check_overflow=false>
     void Forward(const array<dtype, in_features>& input, array<out_dtype, out_features>& output) const {
-        output = parameters.bias;
-        for (int out_channel = 0; out_channel < out_features; out_channel++) {
-            for (int in_channel = 0; in_channel < in_features; in_channel++) {
-                if (!check_overflow) {
-                    output[out_channel] += (out_dtype)input[in_channel] * (out_dtype)parameters.weight[out_channel][in_channel];
+        constexpr auto USE_AVX2 = true;
+
+        if (USE_AVX2 && is_same<out_dtype, int>() && out_features % 4 == 0 && in_features % 32 == 0) {
+            // 参考: https://github.com/yaneurao/YaneuraOu/blob/f94720b9b72aaa992b02e45914590c63b3d114b2/source/eval/nnue/layers/affine_transform.h
+
+            const __m256i kOnes256 = _mm256_set1_epi16(1);
+            static constexpr int kSimdWidth = sizeof(__m256i) / sizeof(signed char);
+            static constexpr auto kNumChunks = in_features / kSimdWidth;
+
+            // 512 bit = 16 bit x 32 のベクトル a, b から、a * b を計算してちょっと集約して 32bit x 8 にする
+            // 途中 saturate が起こる可能性がある
+            auto m256_add_dpbusd_epi32x2 = [=](__m256i& acc, __m256i a0, __m256i b0, __m256i a1, __m256i b1) {
+                __m256i product0 = _mm256_maddubs_epi16(a0, b0);
+                __m256i product1 = _mm256_maddubs_epi16(a1, b1);
+                product0 = _mm256_adds_epi16(product0, product1);
+                product0 = _mm256_madd_epi16(product0, kOnes256);
+                acc = _mm256_add_epi32(acc, product0);
+            };
+
+            // 32 bit x 8 のベクトル 4 つをそれぞれ集約して 1 つの 32 bit x 4 のベクトルにする
+            auto m256_haddx4 = [](__m256i sum0, __m256i sum1, __m256i sum2, __m256i sum3, __m128i bias) -> __m128i {
+                sum0 = _mm256_hadd_epi32(sum0, sum1);  // 00110011
+                sum2 = _mm256_hadd_epi32(sum2, sum3);  // 22332233
+
+                sum0 = _mm256_hadd_epi32(sum0, sum2);  // 01230123
+
+                __m128i sum128lo = _mm256_castsi256_si128(sum0);
+                __m128i sum128hi = _mm256_extracti128_si256(sum0, 1);
+
+                return _mm_add_epi32(_mm_add_epi32(sum128lo, sum128hi), bias);  // 0123
+            };
+
+		    const auto input_vector = reinterpret_cast<const __m256i*>(&input[0]);
+            for (int i = 0; i < out_features; i += 4) {
+                const __m128i bias = *reinterpret_cast<const __m128i*>(&parameters.bias[i]);
+                __m128i* outptr = reinterpret_cast<__m128i*>(&output[i]);
+
+                __m256i sum0 = _mm256_setzero_si256();
+                __m256i sum1 = _mm256_setzero_si256();
+                __m256i sum2 = _mm256_setzero_si256();
+                __m256i sum3 = _mm256_setzero_si256();
+
+                const auto row0 = reinterpret_cast<const __m256i*>(&parameters.weight[i]);
+                const auto row1 = reinterpret_cast<const __m256i*>(&parameters.weight[i + 1]);
+                const auto row2 = reinterpret_cast<const __m256i*>(&parameters.weight[i + 2]);
+                const auto row3 = reinterpret_cast<const __m256i*>(&parameters.weight[i + 3]);
+
+                for (int j = 0; j < kNumChunks - 1; j += 2) {
+                    const __m256i in0 = input_vector[j];
+                    const __m256i in1 = input_vector[j + 1];
+
+                    m256_add_dpbusd_epi32x2(sum0, in0, row0[j], in1, row0[j + 1]);
+                    m256_add_dpbusd_epi32x2(sum1, in0, row1[j], in1, row1[j + 1]);
+                    m256_add_dpbusd_epi32x2(sum2, in0, row2[j], in1, row2[j + 1]);
+                    m256_add_dpbusd_epi32x2(sum3, in0, row3[j], in1, row3[j + 1]);
                 }
-                else {
-                    const out_dtype d = (out_dtype)input[in_channel] * (out_dtype)parameters.weight[out_channel][in_channel];
-                    if (d >= 0) {
-                        if (output[out_channel] > numeric_limits<out_dtype>::max() - d) {  // オーバーフロー
-                            output[out_channel] = numeric_limits<out_dtype>::max();
-                        }
-                        else {
-                            output[out_channel] += d;
-                        }
+                *outptr = m256_haddx4(sum0, sum1, sum2, sum3, bias);
+            }
+        }
+        else {
+            output = parameters.bias;
+            for (int out_channel = 0; out_channel < out_features; out_channel++) {
+                for (int in_channel = 0; in_channel < in_features; in_channel++) {
+                    if (!check_overflow) {
+                        output[out_channel] += (out_dtype)input[in_channel] * (out_dtype)parameters.weight[out_channel][in_channel];
                     }
                     else {
-                        if (output[out_channel] < numeric_limits<out_dtype>::min() - d) {  // オーバーフロー
-                            output[out_channel] = numeric_limits<out_dtype>::min();
+                        const out_dtype d = (out_dtype)input[in_channel] * (out_dtype)parameters.weight[out_channel][in_channel];
+                        if (d >= 0) {
+                            if (output[out_channel] > numeric_limits<out_dtype>::max() - d) {  // オーバーフロー
+                                output[out_channel] = numeric_limits<out_dtype>::max();
+                            }
+                            else {
+                                output[out_channel] += d;
+                            }
                         }
                         else {
-                            output[out_channel] += d;
+                            if (output[out_channel] < numeric_limits<out_dtype>::min() - d) {  // オーバーフロー
+                                output[out_channel] = numeric_limits<out_dtype>::min();
+                            }
+                            else {
+                                output[out_channel] += d;
+                            }
                         }
                     }
                 }
@@ -424,11 +485,12 @@ struct Model {
 // 特殊化
 template<int in_dim, int out_dim, int hidden_1, int hidden_2>
 struct Model<in_dim, out_dim, hidden_1, hidden_2, true> {
+    using out_dtype = short;
     EmbeddingBag<in_dim + 1, hidden_1, short> embed;
-    Linear<hidden_1, hidden_2, signed char, short> linear_condition;
-    Linear<hidden_1, hidden_2, signed char, short> linear_2;
-    Linear<hidden_2, hidden_2, signed char, short> linear_3;
-    Linear<hidden_2, out_dim, signed char, short> linear_4;
+    Linear<hidden_1, hidden_2, signed char, out_dtype> linear_condition;
+    Linear<hidden_1, hidden_2, signed char, out_dtype> linear_2;
+    Linear<hidden_2, hidden_2, signed char, out_dtype> linear_3;
+    Linear<hidden_2, out_dim, signed char, out_dtype> linear_4;
 
     // コンストラクタ
     constexpr inline Model() : embed(), linear_condition(), linear_2(), linear_3(), linear_4() {}
@@ -442,13 +504,13 @@ struct Model<in_dim, out_dim, hidden_1, hidden_2, true> {
         }
         fread(&embed.parameters.weight, embed.parameters.weight.Ravel().size(), sizeof(short), fp);
         fread(&linear_condition.parameters.weight, linear_condition.parameters.weight.Ravel().size(), sizeof(signed char), fp);
-        fread(&linear_condition.parameters.bias, linear_condition.parameters.bias.size(), sizeof(short), fp);
+        fread(&linear_condition.parameters.bias, linear_condition.parameters.bias.size(), sizeof(out_dtype), fp);
         fread(&linear_2.parameters.weight, linear_2.parameters.weight.Ravel().size(), sizeof(signed char), fp);
-        fread(&linear_2.parameters.bias, linear_2.parameters.bias.size(), sizeof(short), fp);
+        fread(&linear_2.parameters.bias, linear_2.parameters.bias.size(), sizeof(out_dtype), fp);
         fread(&linear_3.parameters.weight, linear_3.parameters.weight.Ravel().size(), sizeof(signed char), fp);
-        fread(&linear_3.parameters.bias, linear_3.parameters.bias.size(), sizeof(short), fp);
+        fread(&linear_3.parameters.bias, linear_3.parameters.bias.size(), sizeof(out_dtype), fp);
         fread(&linear_4.parameters.weight, linear_4.parameters.weight.Ravel().size(), sizeof(signed char), fp);
-        fread(&linear_4.parameters.bias, linear_4.parameters.bias.size(), sizeof(short), fp);
+        fread(&linear_4.parameters.bias, linear_4.parameters.bias.size(), sizeof(out_dtype), fp);
     }
 
     template<class Vector1, class Vector2>  // Stack<int, n> とか
