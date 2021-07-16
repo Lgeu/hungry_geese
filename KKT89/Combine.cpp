@@ -1,3 +1,4 @@
+#include "src/Duct.cpp"
 #include "src/MctsAgent.cpp"
 #include "src/Random.cpp"
 #include "src/Point.cpp"
