@@ -5,7 +5,7 @@ namespace hungry_geese {
 
 //------------------------------------------------------------------------------
 // コンストラクタ
-MctsAgent::MctsAgent() : model() {}
+MctsAgent::MctsAgent() : model(), duct() {}
 
 //------------------------------------------------------------------------------
 // 実行
@@ -16,9 +16,23 @@ AgentResult MctsAgent::run(const Stage& aStage, int aIndex) {
     }
     // DUCTをここで実装
     {
-
+        AgentResult result;
+        duct.InitDuct(aStage, aIndex);
+        duct.Search(0.3);
+        auto rootnode = duct.RootNode();
+        for (int i = 0; i < 4; ++i) {
+            result.mPolicy[i] = (float)rootnode.n[0][i] / (float)(rootnode.n[0][0] + rootnode.n[0][1] + rootnode.n[0][2] + rootnode.n[0][3]);
+        }
+        result.mValue = rootnode.value[0];
+        unsigned char opt_action = 0;
+        for (int i = 0; i < 4; ++i) {
+            if (result.mPolicy[opt_action] < result.mPolicy[i]) {
+                opt_action = i;
+            }
+        }
+        result.mAction = opt_action;
+        return result;
     }
-    return solve1(aStage, aIndex);
 }
 
 //------------------------------------------------------------------------------
