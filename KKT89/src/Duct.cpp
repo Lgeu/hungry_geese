@@ -5,7 +5,13 @@ namespace hungry_geese {
 
 //------------------------------------------------------------------------------
 // コンストラクタ
-Duct::Duct() : node_buffer(), children_buffer(), move_buffer(), model() {}
+Duct::Duct() : node_buffer(), children_buffer(), model() {}
+
+//------------------------------------------------------------------------------
+// Ductのログをデバック出力
+void Duct::Setprintlog(bool f) {
+    printlog = f;
+}
 
 //------------------------------------------------------------------------------
 // Point
@@ -42,9 +48,9 @@ bool Duct::Cpoint::operator== (const Cpoint &aPos) const {
 
 //------------------------------------------------------------------------------
 // State
-Duct::State::State() : geese(), boundary(), foods(), current_step(), last_actions() {}
+Duct::State::State() : geese(), boundary(), foods(), current_step(), last_actions(), ranking() {}
 
-Duct::State::State(hungry_geese::Stage aStage, int aIndex) : geese(), boundary(), foods(), current_step(), last_actions() {
+Duct::State::State(hungry_geese::Stage aStage, int aIndex) : geese(), boundary(), foods(), current_step(), last_actions(), ranking() {
     // Goose
     std::swap(aStage.mGeese[0],aStage.mGeese[aIndex]);
     int index = 0;
@@ -68,11 +74,22 @@ Duct::State::State(hungry_geese::Stage aStage, int aIndex) : geese(), boundary()
     current_step = aStage.mTurn;
     // 最後の行動
     auto LastActions = aStage.mLastActions;
+    std::swap(LastActions[0], LastActions[aIndex]);
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
             if (LastActions[i] == Idx_to_Actions[j]) {
                 last_actions += (1 << (i+i)) * j;
             }
+        }
+    }
+    // 順位情報
+    for (int i = 0; i < 4; ++i) {
+        if (boundary[i + 1] - boundary[i] == 0) {
+            ranking[i] = 4;
+        }
+        else {
+            // 未確定は0
+            ranking[i] = 0;
         }
     }
 }
@@ -87,6 +104,7 @@ Duct::State Duct::State::NextState(NodeType node_type, const unsigned char agent
     nextstate.foods = foods;
     nextstate.current_step = current_step + 1;
     nextstate.last_actions = last_actions;
+    nextstate.ranking = ranking;
     if (node_type == NodeType::AGENT_NODE) {
         Simulate(nextstate, agent_action);
         nextstate.last_actions = agent_action;
@@ -108,10 +126,12 @@ Duct::State Duct::State::NextState(NodeType node_type, const unsigned char agent
 void Duct::State::Simulate(State &state, unsigned char agent_action) {
     static std::array<Cpoint, 77> n_goose;
     static std::array<signed char, 5> n_boundary;
+    static std::array<signed char, 4> pre_gooselength;
     unsigned char index = 0;
     for (unsigned char i = 0; i < 4; ++i) {
         n_boundary[i] = index;
-        if (state.goose_size(i) == 0) {
+        pre_gooselength[i] = state.boundary[i + 1] - state.boundary[i];
+        if (pre_gooselength[i] == 0) {
             agent_action /= 4;
             continue;
         }
@@ -164,22 +184,67 @@ void Duct::State::Simulate(State &state, unsigned char agent_action) {
         }
     }
     state.boundary[4] = index;
+    for (int i = 0; i < 4; ++i) {
+        // この行動によって脱落したAgentの順位付けをする
+        if (pre_gooselength[i] != 0 and state.boundary[i + 1] - state.boundary[i] == 0) {
+            unsigned char rank = 1;
+            for (int j = 0; j < 4; ++j) {
+                if (i == j) {
+                    continue;
+                }
+                else if (state.boundary[j + 1] - state.boundary[j] != 0) {
+                    rank++;
+                }
+                else if (pre_gooselength[j] < pre_gooselength[i]) {
+                    rank++;
+                }
+            }
+            state.ranking[i] = rank;
+        }
+    }
+}
+
+bool Duct::State::Finished() const {
+    int surviver = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (boundary[i + 1] - boundary[i] > 0) {
+            surviver++;
+        }
+    }
+    if(surviver <= 1) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+void Duct::State::Debug() const {
+    // lastmove
+    int act = last_actions;
+    std::cerr << "last_actions";
+    for (int i = 0; i < 4; ++i) {
+        std::cerr << " " << act%4;
+        act /= 4;
+    }
+    std::cerr << std::endl;
 }
 
 //------------------------------------------------------------------------------
 // Node
-std::array<std::array<float, 4>, 4> Duct::Node::GetPolicy() const {
+const std::array<std::array<float, 4>, 4>& Duct::Node::GetPolicy() const {
     return policy;
 }
 
-std::array<std::array<float, 4>, 4> Duct::Node::GetWorth() const {
+const std::array<std::array<float, 4>, 4>& Duct::Node::GetWorth() const {
     return worth;
 }
 
-Duct::Node::Node() : state(), policy(), worth(), n(0), n_children(), children_offset(), node_type() {}
+Duct::Node::Node() : state(), policy(), value(), worth(), n(), n_children(), children_offset(), node_type() {}
 
-Duct::Node::Node(const State& aState, Stack<Node*, BIG>& children_buffer) : state(aState), policy(), worth(), n(0), children_offset(), node_type() {
+Duct::Node::Node(const State& aState, Stack<Node*, BIG>& children_buffer) : state(aState), policy(), value(), worth(), n(), children_offset(), node_type() {
     policy[0][0] = -100.0;
+    value[0] = -100.0;
 
     if (aState.foods[0].Id() == -1 or aState.foods[1].Id() == -1) {
         node_type = NodeType::FOOD_NODE;
@@ -208,55 +273,55 @@ Duct::Node::Node(const State& aState, Stack<Node*, BIG>& children_buffer) : stat
     }
 
     children_offset = children_buffer.size();
-    children_buffer.resize(children_offset + n_children);
+    children_buffer.resize(children_offset + n_children, nullptr);
 }
 
 bool Duct::Node::Expanded() const {
     return (policy[0][0] != -100.0);
 }
 
-int Duct::Node::ChooseMove() {
-    // 未実装
-    return 0;
+float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int& t_sum) {
+    constexpr float c_puct = 1.0;
+    float n_sum = 1e-1 + n[idx_agent][0] + n[idx_agent][1] + n[idx_agent][2] + n[idx_agent][3];
+    return GetWorth()[idx_agent][idx_move] / (float)(1e-1 + n[idx_agent][idx_move]) + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt(t_sum) / (float)(1 + n[idx_agent][idx_move]);
 }
 
-// int Duct::Node::Move(const int& idx_move, const int& idx_agent) {
-//     ASSERT_RANGE(idx_move, 0, n_children);
-//     if (node_type == NodeType::AGENT_NODE) {
-//         int cur = idx_move;
-//         int res = -1;
-//         for (int i = 0; i < 4; ++i) {
-//             if (state.goose_size((unsigned char) i) == 0) {
-//                 continue;
-//             }
-//             // if (i == idx_agent) {
-//             //     int idx = cur % 3;
-//             //     for (int j = 0; j < 4; ++j) {
-//             //         if ((state.last_actions[idx_agent] ^ 2) == j) {
-//             //             continue;
-//             //         }
-//             //         if(idx == 0) {
-//             //             res = j;
-//             //             break;
-//             //         }
-//             //         else {
-//             //             idx--;
-//             //         }
-//             //     }
-//             // }
-//             // cur /= 3;
-//         }
-//         ASSERT_RANGE(res, 0, 4);
-//         return res;
-//     }
-//     // else {
-//     //     ASSERT_RANGE(idx_agent, 0, 1);
-//     //     if(!DoInitCell()) {
-//     //         InitCell();
-//     //     }
-//     //     return empty_cell[idx_move];
-//     // }
-// }
+int Duct::Node::ChooseMove(const int& t_sum) {
+    int k = 0;
+    if (node_type == NodeType::AGENT_NODE) {
+        unsigned char base = 1;
+        for (int i = 0; i < 4; ++i) {
+            if (state.goose_size(i) == 0) {
+                continue;
+            }
+            unsigned char ith_idx_lastmove = 0;
+            if (state.last_actions & (1 << (i + i))) ith_idx_lastmove++;
+            if (state.last_actions & (1 << (i + i + 1))) ith_idx_lastmove+=2;
+            float maxvalue = -100.0;
+            unsigned char opt_action = 0;
+            for (int j = 0; j < 4; ++j) {
+                if ((ith_idx_lastmove ^ 2) == j) {
+                    continue;
+                }
+                auto res = Argvalue(i, j, t_sum);
+                if (res > maxvalue) {
+                    maxvalue = res;
+                    opt_action = j;
+                }
+            }
+            if (opt_action > (ith_idx_lastmove ^2)) {
+                opt_action--;
+            }
+            k += base * opt_action;
+            base *= 3;
+        }
+    }
+    else {
+        static std::mt19937 engine(std::chrono::steady_clock::now().time_since_epoch().count());
+        return engine() % n_children;
+    }
+    return k;
+}
 
 Duct::Node& Duct::Node::KthChildren(Stack<Node, BIG>& node_buffer, Stack<Node*, BIG>& children_buffer, const int& k) {
     ASSERT_RANGE(k, 0, n_children);
@@ -356,10 +421,14 @@ Duct::Node& Duct::Node::KthChildren(Stack<Node, BIG>& node_buffer, Stack<Node*, 
             }
         }
         auto nextnode = Node(nextstate, children_buffer);
-        node_buffer.emplace(nextnode);
+        node_buffer.push(nextnode);
         child = children_buffer[children_offset + k] = &node_buffer.back();
     }
     return *child;
+}
+
+void Duct::Node::Debug() const {
+    // State
 }
 
 //------------------------------------------------------------------------------
@@ -367,15 +436,121 @@ Duct::Node& Duct::Node::KthChildren(Stack<Node, BIG>& node_buffer, Stack<Node*, 
 Duct::Duct(const Node& arg_state) {
     node_buffer[0] = arg_state;
     for (auto&& c : children_buffer) c = nullptr;
+    t_sum = 0;
 }
 // 初期化
 void Duct::InitDuct(const Node& arg_state) {
-    node_buffer[0] = arg_state;
-    for (auto&& c : children_buffer) c = nullptr;
+    node_buffer.clear();
+    node_buffer.push(arg_state);
+    children_buffer.clear();
+    t_sum = 0;
+}
+void Duct::InitDuct(hungry_geese::Stage aStage, int aIndex) {
+    children_buffer.clear();
+    t_sum = 0;
+    auto state = Duct::State(aStage, aIndex);
+    auto node = Duct::Node(state, children_buffer);
+    node_buffer.clear();
+    node_buffer.push(node);
+    if (printlog) {
+        // ターン情報
+        std::cout << "Turn : " << aStage.mTurn << " " << "Agent : " << aIndex << std::endl;
+        state.Debug();
+    }
 }
 
 //------------------------------------------------------------------------------
+void Duct::Search(const float timelimit) {
+    double timebegin = nagiss_library::time();
+    while (nagiss_library::time() - timebegin < timelimit) {
+        Iterate();
+        t_sum++;
+        if (t_sum >=3)break;
+    }
+}
 
+Duct::Node& Duct::RootNode() {
+    return node_buffer[0];
+}
+
+void Duct::Iterate() {
+    // 根から葉に移動
+    Node* v = &RootNode();
+    Stack<int, 100> path;
+    // 展開されてない、エージェントのノードに到達したら抜ける
+    while (v->Expanded() or v->node_type == NodeType::FOOD_NODE) {
+        int move_idx = v->ChooseMove(t_sum);
+        path.push(move_idx);
+        v = &v->KthChildren(node_buffer, children_buffer, move_idx);
+        if (v->state.Finished()) { // 終局状態
+            break;
+        }
+    }
+
+    // 葉ノードの処理
+    std::array<float, 4> value;
+    if (v->state.Finished()) {
+        // 決着がついた場合、順位に応じて value を設定
+        for (int i = 0; i < 3; ++i) {
+            for (int j = i + 1; j < 4; ++j) {
+                if (v->state.ranking[i] < v->state.ranking[j]) {
+                    value[i]++;
+                }
+                else if (v->state.ranking[i] == v->state.ranking[j]) {
+                    value[i] += 0.5f;
+                    value[j] += 0.5f;
+                }
+                else {
+                    value[j]++;
+                }
+            }
+        }
+    }
+    else {
+        Node* leaf = v;
+        std::array<Stack<int, 77>, 4> geese;
+        std::array<int, 2> foods;
+        for (int i = 0; i < 4; ++i) {
+            for (int j = v->state.boundary[i]; j < v->state.boundary[i + 1]; ++j) {
+                geese[i].push(v->state.geese[j].Id());
+            }
+        }
+        for (int i = 0; i < 2; ++i) {
+            foods[i] = v->state.foods[i].Id();
+        }
+        for (int i = 0; i < 4; ++i) {
+            std::swap(geese[0], geese[i]);
+            auto res = model.evaluate(geese, foods);
+            for (int j = 0; j < 4; ++j) {
+                v->policy[i][j] = res.policy[j];
+            }
+            v->value[i] = res.value;
+            std::swap(geese[0], geese[i]);
+        }
+    }
+
+    // 葉までの評価結果を経路のノードに反映
+    v = &RootNode();
+    for (const auto& move_idx : path) {
+        int k = move_idx;
+        for (int idx_agent = 0; idx_agent < 4; ++idx_agent) {
+            if (v->state.goose_size(idx_agent) == 0) {
+                continue;
+            }
+            unsigned char opt_action = k % 3;
+            k /= 3; 
+            unsigned char ith_idx_lastmove = 0;
+            if (v->state.last_actions & (1 << (idx_agent + idx_agent))) ith_idx_lastmove++;
+            if (v->state.last_actions & (1 << (idx_agent + idx_agent + 1))) ith_idx_lastmove+=2;
+            if (opt_action >= (ith_idx_lastmove ^2)) {
+                opt_action++;
+            }
+            v->worth[idx_agent][opt_action] += value[idx_agent];
+            v->n[idx_agent][opt_action]++;
+        }
+        v = &v->KthChildren(node_buffer, children_buffer, move_idx);
+    }
+}
 
 //------------------------------------------------------------------------------
 // 方向を指定して移動先を返す関数

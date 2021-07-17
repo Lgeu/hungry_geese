@@ -12,7 +12,7 @@ Random::Random(uint aX) {
     else {
         Random::x = aX;
     }
-    std::mt19937 aengine(aX);
+    std::mt19937 aengine(Random::x);
     Random::engine = aengine;
 }
 

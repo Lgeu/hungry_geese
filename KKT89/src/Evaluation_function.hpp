@@ -476,7 +476,7 @@ struct Evaluator{
     GeeseNet<> model;
     Evaluator(){
         // パラメータ設定
-        // #include "EvalParameters.hpp"
+        #include "EvalParameters.hpp"
     }
     template<class T, int max_size>
     using Stack = Stack<T, max_size>;
@@ -500,6 +500,35 @@ struct Evaluator{
         }
         // 食べ物
         for(const auto& pos : foods) input[16][pos.x][pos.y] = 1.0f;
+        struct{
+            std::array<float, 4> policy;
+            float value;
+        } result;
+        model.Forward(input, result.policy, result.value);
+        std::swap(result.policy[1],result.policy[2]);
+        std::swap(result.policy[1],result.policy[3]);
+        return result;
+    }
+    auto evaluate(const std::array<Stack<int, 77>, 4>& geese, const std::array<int, 2>& foods) const {
+        static auto input = Tensor3<float, 17, 7, 11>();
+        input.Fill(0.0);
+        for(int agent=0; agent<4; agent++){
+            const auto& goose = geese[agent];
+            if(goose.size() > 0){
+                // 頭
+                input[0+agent][goose.front() / 11][goose.front() % 11] = 1.0f;
+                // しっぽ
+                input[4+agent][goose.back() / 11][goose.back() % 11] = 1.0f;
+                // 全部
+                for(const auto& pos : goose)
+                    input[8+agent][pos / 11][pos % 11] = 1.0f;
+                // 1 つ前のターンの頭 (元の実装とちょっと違う)
+                if(goose.size() >= 2)
+                    input[12+agent][goose[1] / 11][goose[1] % 11] = 1.0f;
+            }
+        }
+        // 食べ物
+        for(const auto& pos : foods) input[16][pos / 11][pos % 11] = 1.0f;
         struct{
             std::array<float, 4> policy;
             float value;
