@@ -92,6 +92,8 @@ struct Duct {
         // k 番目の行動によって遷移する子ノードを返す 
         // その子ノードが初めて遷移するものだった場合、新たに領域を確保してノードを作る
         Node& KthChildren(Stack<Node, BIG>& node_buffer, Stack<Node*, BIG>& children_buffer, const int& k);
+        // デバック用
+        void Debug() const;
     };
 
     Stack<Node, BIG> node_buffer;

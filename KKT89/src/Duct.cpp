@@ -74,6 +74,7 @@ Duct::State::State(hungry_geese::Stage aStage, int aIndex) : geese(), boundary()
     current_step = aStage.mTurn;
     // 最後の行動
     auto LastActions = aStage.mLastActions;
+    std::swap(LastActions[0], LastActions[aIndex]);
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
             if (LastActions[i] == Idx_to_Actions[j]) {
@@ -219,11 +220,14 @@ bool Duct::State::Finished() const {
 }
 
 void Duct::State::Debug() const {
-    std::cout << "Geese :";
-    for (int i = 0; i < boundary[4]; ++i) {
-        std::cout << " " << geese[i].Id();
+    // lastmove
+    int act = last_actions;
+    std::cerr << "last_actions";
+    for (int i = 0; i < 4; ++i) {
+        std::cerr << " " << act%4;
+        act /= 4;
     }
-    std::cout << std::endl;
+    std::cerr << std::endl;
 }
 
 //------------------------------------------------------------------------------
@@ -279,7 +283,7 @@ bool Duct::Node::Expanded() const {
 float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int& t_sum) {
     constexpr float c_puct = 1.0;
     float n_sum = 1e-1 + n[idx_agent][0] + n[idx_agent][1] + n[idx_agent][2] + n[idx_agent][3];
-    return GetWorth()[idx_agent][idx_move] / (float)n_sum + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt(t_sum) / (float)(1 + n_sum);
+    return GetWorth()[idx_agent][idx_move] / (float)(1e-1 + n[idx_agent][idx_move]) + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt(t_sum) / (float)(1 + n[idx_agent][idx_move]);
 }
 
 int Duct::Node::ChooseMove(const int& t_sum) {
@@ -423,6 +427,10 @@ Duct::Node& Duct::Node::KthChildren(Stack<Node, BIG>& node_buffer, Stack<Node*, 
     return *child;
 }
 
+void Duct::Node::Debug() const {
+    // State
+}
+
 //------------------------------------------------------------------------------
 // コンストラクタ
 Duct::Duct(const Node& arg_state) {
@@ -447,7 +455,6 @@ void Duct::InitDuct(hungry_geese::Stage aStage, int aIndex) {
     if (printlog) {
         // ターン情報
         std::cout << "Turn : " << aStage.mTurn << " " << "Agent : " << aIndex << std::endl;
-        // State
         state.Debug();
     }
 }
@@ -458,6 +465,7 @@ void Duct::Search(const float timelimit) {
     while (nagiss_library::time() - timebegin < timelimit) {
         Iterate();
         t_sum++;
+        if (t_sum >=3)break;
     }
 }
 

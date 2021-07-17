@@ -16,7 +16,7 @@ AgentResult MctsAgent::run(const Stage& aStage, int aIndex) {
     }
     // DUCTをここで実装
     {
-        duct.Setprintlog(true);
+        duct.Setprintlog(false);
         AgentResult result;
         duct.InitDuct(aStage, aIndex);
         duct.Search(0.3);

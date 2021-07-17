@@ -13,7 +13,7 @@ struct MctsAgent {
     MctsAgent();
 
     Evaluator model;
-    Duct duct;
+    Duct duct; 
 
     // 実行
     AgentResult run(const Stage& aStage, int aIndex);
