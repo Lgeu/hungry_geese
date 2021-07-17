@@ -317,12 +317,19 @@ struct alignas(32) Linear {
 
     template<bool check_overflow=false>
     void Forward(const array<dtype, in_features>& input, array<out_dtype, out_features>& output) const {
-        constexpr auto USE_AVX2 = false;  // TODO: バグがある 直す
+        constexpr auto USE_AVX2 = true;  // TODO: バグがある 直す
 
-        if (USE_AVX2 && is_same<out_dtype, int>() && out_features % 4 == 0 && in_features % 32 == 0) {
+        if (USE_AVX2 && is_same<dtype, signed char>() && is_same<out_dtype, int>() && out_features % 4 == 0 && in_features % 32 == 0) {
             // 参考: https://github.com/yaneurao/YaneuraOu/blob/f94720b9b72aaa992b02e45914590c63b3d114b2/source/eval/nnue/layers/affine_transform.h
 
-            ASSERT((&output & 0b11111) == 0, "アライメントがヤバい");
+            ASSERT(((intptr_t)&input & 0b11111) == 0, "アライメントがヤバい");
+            ASSERT(((intptr_t)&output & 0b11111) == 0, "アライメントがヤバい");
+            ASSERT(((intptr_t)&parameters.weight & 0b11111) == 0, "アライメントがヤバい");
+            ASSERT(((intptr_t)&parameters.bias & 0b11111) == 0, "アライメントがヤバい");
+            ASSERT(input[0] >= 0 && input[0] <= 127, "input 内の数は unsigned でも同じように表せないといけない");
+
+            static_assert(sizeof(int) == 4);
+
             const __m256i kOnes256 = _mm256_set1_epi16(1);
             static constexpr auto kSimdWidth = (int)(sizeof(__m256i) / sizeof(signed char));  // 32
             static constexpr auto kNumChunks = in_features / kSimdWidth;  // in_features が 256 なら 8, 32 なら 1
@@ -374,7 +381,7 @@ struct alignas(32) Linear {
                 const auto row2 = reinterpret_cast<const __m256i*>(&parameters.weight[i + 2]);
                 const auto row3 = reinterpret_cast<const __m256i*>(&parameters.weight[i + 3]);
 
-                for (int j = 0; j < (int)kNumChunks; ++j) {
+                for (int j = 0; j < kNumChunks; ++j) {
                     const __m256i in = input_vector[j];
 
                     m256_add_dpbusd_epi32(sum0, in, row0[j]);
@@ -488,7 +495,7 @@ struct Model {
                 condition_embedded[dim] += agent_embedded[idx_agents][dim] >> 2;  // Vector 構造体を作るべきだった感
             }
         }
-        for (auto&& v : condition_embedded) v -= (short)(1 << 11);
+        //for (auto&& v : condition_embedded) v -= (short)(1 << 11);
         // scale -6
         alignas(32) static auto condition_embedded_8bit = array<signed char, hidden_1>();
         for (int dim = 0; dim < hidden_1; dim++) {
@@ -518,7 +525,7 @@ struct Model {
                 hidden_state_2[idx_agents][dim] += condition_hidden[dim];
             }
         }
-        for (auto&& v : hidden_state_2.Ravel()) v -= (out_dtype)(1 << 14);
+        //for (auto&& v : hidden_state_2.Ravel()) v -= (out_dtype)(1 << 14);
         alignas(32) static auto hidden_state_2_8bit = Matrix<signed char, 4, hidden_2>();
         // scale -9
         for (int dim = 0; dim < hidden_state_2.Ravel().size(); dim++) {
@@ -1347,33 +1354,33 @@ void TestModel() {
     //for (const auto& v : {}) {
     //    agent_features[0].push(v);
     //}
-    for (const auto& v : { 72,  128,  258,  438,  519,  594,  620,  649,  670,  731,  755,
-           850,  908,  964, 1089, 1261, 1327, 1359, 1371, 1395, 1434, 1487,
-          1553, 1628, 1708, 1714, 1718, 1723, 1727, 1731, 1735, 1739, 1743,
-          1749, 1761, 1783, 1815, 1856, 1903, 1959, 2027 }) {
+    for (const auto& v : { 0,  128,  295,  384,  517,  595,  620,  647,  668,  748,  777,
+           866,  902,  926, 1127, 1266, 1326, 1359, 1372, 1397, 1437, 1490,
+          1556, 1632, 1711, 1714, 1718, 1722, 1727, 1731, 1735, 1739, 1743,
+          1749, 1762, 1787, 1824, 1862, 1903, 1959, 2027 }) {
         agent_features[1].push(v);
     }
-    for (const auto& v : { 114,  128,  310,  402,  524,  599,  625,  651,  672,  720,  754,
-           860,  902,  958, 1143, 1261, 1328, 1358, 1368, 1388, 1424, 1478,
-          1547, 1625, 1707, 1714, 1718, 1723, 1727, 1731, 1735, 1739, 1743,
-          1748, 1758, 1776, 1805, 1847, 1897, 1956, 2026 }) {
+    for (const auto& v : { 73,  133,  256,  432,  521,  599,  624,  651,  672,  695,  809,
+           863,  962,  909, 1149, 1264, 1330, 1359, 1371, 1393, 1430, 1483,
+          1552, 1629, 1710, 1714, 1718, 1722, 1727, 1731, 1735, 1739, 1743,
+          1749, 1761, 1783, 1817, 1855, 1899, 1956, 2026 }) {
         agent_features[2].push(v);
     }
     //for (const auto& v : {}) {
     //    agent_features[3].push(v);
     //}
     static auto condition_features = Stack<int, 100>();
-    for (const auto& v : { 2104, 2126, 2244 }) {
+    for (const auto& v : { 2104, 2121, 2235 }) {
         condition_features.push(v);
     }
     static auto output = Matrix<float, 4, 5>();
     ev.model.Forward(agent_features, condition_features, output);
     output.Print();
-    //[[-6.4945, -0.4498,  0.0785, -0.0306,  0.3376],
-    // [ 6.4957,  0.4489, -0.0787,  0.0302, -0.3423] ,
-    // [ 2.8075,  0.2148,  0.1410,  0.1471, -0.2407],
-    // [-1.4518, -0.1351,  0.2001,  0.2734, -0.0514]]
-    // https://www.kaggle.com/nagiss/geese-007-nn-prepare-training?scriptVersionId=68291337
+    //[[-8.6108e+00, 3.1641e-01, 1.0366e+00,  1.2217e+00,  1.3755e+00],
+    // [ 3.6675e+00, 6.3477e-03, 8.8159e-01, -8.0566e-02, -5.0781e-02],
+    // [-2.1658e+00, 1.4551e-01, 9.7241e-01,  6.3794e-01,  6.0352e-01],
+    // [-8.6108e+00, 3.1641e-01, 1.0366e+00,  1.2217e+00,  1.3755e+00]]
+    // https://www.kaggle.com/nagiss/geese-007-nn-prepare-training?scriptVersionId=68379870
 }
 void TestEvaluator() {
     using namespace std;
