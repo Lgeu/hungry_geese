@@ -317,7 +317,7 @@ struct alignas(32) Linear {
 
     template<bool check_overflow=false>
     void Forward(const array<dtype, in_features>& input, array<out_dtype, out_features>& output) const {
-        constexpr auto USE_AVX2 = true;  // TODO: バグがある 直す
+        constexpr auto USE_AVX2 = true;
 
         if (USE_AVX2 && is_same<dtype, signed char>() && is_same<out_dtype, int>() && out_features % 4 == 0 && in_features % 32 == 0) {
             // 参考: https://github.com/yaneurao/YaneuraOu/blob/f94720b9b72aaa992b02e45914590c63b3d114b2/source/eval/nnue/layers/affine_transform.h
@@ -331,7 +331,7 @@ struct alignas(32) Linear {
             static_assert(sizeof(int) == 4);
 
             const __m256i kOnes256 = _mm256_set1_epi16(1);
-            static constexpr auto kSimdWidth = (int)(sizeof(__m256i) / sizeof(signed char));  // 32
+            static constexpr auto kSimdWidth = (int)(sizeof(__m256i) / sizeof(dtype));  // 32 / 1 = 32
             static constexpr auto kNumChunks = in_features / kSimdWidth;  // in_features が 256 なら 8, 32 なら 1
 
             // 256 bit = 8 bit x 32 のベクトル a, b から、a[i] * b[i] を計算してちょっと集約して 32 bit x 8 にする
@@ -436,10 +436,31 @@ struct alignas(32) EmbeddingBag {
 
     template<class Vector>  // Stack<int, n> とか
     void Forward(const Vector& input, array<dtype, embedding_dim>& output) const {
+        constexpr static auto USE_AVX2 = true;
+
         fill(output.begin(), output.end(), (dtype)0);
-        for (const auto& idx : input) {
-            for (int dim = 0; dim < embedding_dim; dim++) {
-                output[dim] += parameters.weight[idx][dim];
+        if (USE_AVX2 && is_same<dtype, short>() && embedding_dim % 16 == 0) {
+            ASSERT(((intptr_t)&output & 0b11111) == 0, "アライメントがヤバい");
+            ASSERT(((intptr_t)&parameters.weight & 0b11111) == 0, "アライメントがヤバい");
+
+            static constexpr auto kSimdWidth = (int)(sizeof(__m256i) / sizeof(dtype));  // 32 / 2 = 16
+            static constexpr auto kNumChunks = embedding_dim / kSimdWidth;  // 16
+
+            const auto out_ptr = reinterpret_cast<__m256i*>(&output[0]);
+
+            for (const auto& idx : input) {
+                const auto weight_column = reinterpret_cast<const __m256i*>(&parameters.weight[idx][0]);
+                for (int chunk = 0; chunk < kNumChunks; chunk++) {
+                    out_ptr[chunk] = _mm256_add_epi16(out_ptr[chunk], weight_column[chunk]);
+                }
+            }
+        }
+        else {
+
+            for (const auto& idx : input) {
+                for (int dim = 0; dim < embedding_dim; dim++) {
+                    output[dim] += parameters.weight[idx][dim];
+                }
             }
         }
     }
@@ -562,7 +583,11 @@ struct Model {
         auto res = array<PolicyValue, 4>();
         Forward(agent_features, condition_features, model_out);
         static_assert(sizeof(res) == sizeof(model_out));
-        memcpy(&res, &model_out, sizeof(res));  // 危険  // value は移す必要がないけど面倒なので
+        for (int agent = 0; agent < 4; agent++) {
+            for (int mv = 0; mv < 4; mv++) {
+                res[agent].policy[mv] = model_out[agent][1 + mv];
+            }
+        }
         // value の処理
         for (int a = 0; a < 3; a++) {
             for (int b = a + 1; b < 4; b++) {
