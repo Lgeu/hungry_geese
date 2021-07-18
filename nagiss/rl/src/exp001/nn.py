@@ -10,17 +10,6 @@ import torch.nn.functional as F
 
 from kif import Kif
 
-from time import sleep
-from copy import deepcopy
-from pathlib import Path
-
-#from tqdm import tqdm
-from tqdm.notebook import tqdm
-import torch
-from torch import nn
-import torch.nn.functional as F
-
-
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, kif_files):
         """
@@ -131,7 +120,7 @@ class Model(nn.Module):
         self.linear_4.bias.data += 0.5
         self.quantized = False
 
-    def forward(self, x, condition):
+    def forward(self, x, condition, ignore_rounding=False, debug=False):
         """
 
         Args:
@@ -149,7 +138,10 @@ class Model(nn.Module):
 
         def scale(x, p):
             if self.quantized:
-                return torch.round(x * 2 ** p)
+                if ignore_rounding:
+                    return x * 2 ** p
+                else:
+                    return torch.round(x * 2 ** p)
             else:
                 return x
 
@@ -164,46 +156,37 @@ class Model(nn.Module):
                 return x + a * (1 << p)
             else:
                 return x + a
-        # def clipped_relu(x):
-        #     if self.quantized:
-        #         ma = float(127 << 6)
-        #         mi = 0.0
-        #         x = torch.where(x > ma, torch.tensor(ma).to(x.device), x)
-        #         x = torch.where(x < mi, torch.tensor(mi).to(x.device), x)
-        #         x = torch.floor(x)
-        #         return x
-        #     else:
-        #         x -= 0.5 / 128.0
-        #         return F.hardtanh(x, 0.0, 127.0 / 128.0, inplace=False)
-
+        
         batch_size = x.shape[0]
         x = torch.where(x != -100, x, self.features)
 
         # (1) [batch, 4, length] -> [batch, 4, 256]
-        x = self.embed(x.view(batch_size * 4, -1)).view(batch_size, 4, self.hidden_1)
-        x = add(x, 0.5, 12)
-        x = clipped_relu(x, 127 << 5, 12)                      # scale = 2^12, max = (2^7-1)2^5
+        x = self.embed(x.view(batch_size * 4, -1)).view(batch_size, 4, self.hidden_1)  # scale = 2^12, max = 2^15
+        x = add(x, 0.5, 12)                                    # μ=0.5, σ=1.0, min=-7.5, max=8.5 | μ=2^11, σ=2^12, min=-...
+        x = clipped_relu(x, 127 << 5, 12)                      # μ=0.5, σ=1.0, min=0, max=127/128 | μ=2^11, σ=2^12, min=0, max=127<<5      # scale = 2^12, max = (2^7-1)2^5
         
-        #print(f"1) {condition[0, :3, :5] / ((1<<4) if self.quantized else 1)}")
+        if debug:
+            print(f"1) {x[0, :3, :5] / ((1<<12) if self.quantized else 1)}")
 
         # (2) [batch, length] -> [batch, 256]
-        condition = self.embed(condition)
-        condition = add(condition, 0.5, 12)
-        condition = clipped_relu(condition, 127 << 5, 12)       # scale = 2^12, max = 127<<5
-        condition = condition + x.sum(1)/4                      # scale=2^12 max=127<<6
+        condition = self.embed(condition)                      # μ=0, σ=1.0, min=-8, max=8 | μ=0, σ=2^12, min=-2^15, max=2-15
+        condition = add(condition, 0.5, 12)                    # μ=0.5, σ=1.0, min=-7.5, max=8.5 | μ=2^11, σ=2^12, min=...
+        condition = clipped_relu(condition, 127 << 5, 12)      # μ=0.5, σ=1.0, min=0, max=127/128 | μ=2^11, σ=2^12, min=0, max=127<<5        # scale = 2^12, max = 127<<5
+        condition = condition + x.sum(1)/4                     # μ=1.0, σ=2.0, min=0, max=2*127/128 | μ=2^12, σ=2^13, min=0, max=127<<6      # scale=2^12 max=127<<6
         if not self.quantized:
-            condition *= 0.5
-        condition = scale(condition, -6)                       # scale = 2^6,  max = 2^7-1
+            condition *= 0.5                                   # μ=0.5, σ=1.0, min=0, max=127/128 | ...
+        condition = scale(condition, -6)                       # μ=0.5, σ=1.0, min=0, max=127/128 | μ=2^6, σ=2^7, min=0, max=127            # scale = 2^7,  max = 2^7-1
 
-        #print(f"2) {condition[0, :20] / ((1<<6) if self.quantized else 1)}")
+        if debug:
+            print(f"2) {condition[0, :20] / ((1<<7) if self.quantized else 1)}")
         
         # (3) [batch, 256] -> [batch, 32]
-        condition = self.linear_condition(condition)           # scale = 2^14
-        #print(f"2.5) {condition[0, :3] / ((1<<14) if self.quantized else 1)}")
-        condition = clipped_relu(condition, 127 << 7, 14)      # scale = 2^14, max = (2^7-1)2^7
-        condition = scale(condition, 1)                        # scale = 2^15, max = (2^7-1)2^8
+        condition = self.linear_condition(condition)           # scale = 2^15
+        condition = clipped_relu(condition, 127 << 8, 15)      # scale = 2^15, max = (2^7-1)2^8
+        #condition = scale(condition, 1)                        # scale = 2^15, max = (2^7-1)2^8
         
-        #print(f"3) {condition[0, :3] / ((1<<15) if self.quantized else 1)}")
+        if debug:
+            print(f"3) {condition[0, :3] / ((1<<15) if self.quantized else 1)}")
         
         # (4) [batch, 4, 256] -> [batch, 4, 32]
         x = scale(x, -5)                                       # scale = 2^7,  max = 2^7-1
@@ -214,14 +197,16 @@ class Model(nn.Module):
             condition *= 0.5
         x = scale(x, -9)                                       # scale = 2^6,  max = 2^7-1
 
-        #print(f"4) {x[0, :3] / ((1<<6) if self.quantized else 1)}")
+        if debug:
+            print(f"4) {x[0, :3] / ((1<<6) if self.quantized else 1)}")
         
         # (5) [batch, 4, 32] -> [batch, 4, 32]
         x = self.linear_3(x)                                   # scale = 2^14
         x = clipped_relu(x, 127 << 7, 14)                      # scale = 2^14, max = (2^7-1)2^7
         x = scale(x, -7)                                       # scale = 2^7,  max = 2^7-1
 
-        #print(f"5) {x[0, :3] / ((1<<7) if self.quantized else 1)}")
+        if debug:
+            print(f"5) {x[0, :3] / ((1<<7) if self.quantized else 1)}")
         
         # (6) [batch, 4, 32] -> [batch, 4, out_dim]
         x = self.linear_4(x)                                   # scale = 2^13
@@ -230,7 +215,7 @@ class Model(nn.Module):
 
         return x * 2.0
 
-    def quantize(self):
+    def quantize(self, ignore_rounding=False):
         qmodel = deepcopy(self)
         qmodel.quantized = True
 
@@ -238,13 +223,15 @@ class Model(nn.Module):
         def scale(params, p, bits=8):
             device = params.data.device
             mi = torch.tensor(-(1<<bits-1), dtype=torch.float).to(device)
-            ma = torch.tensor((1<<bits-1)-1, dtype=torch.float).to(device) 
-            params.data = torch.round(params.data * (1 << p))
+            ma = torch.tensor((1<<bits-1)-1, dtype=torch.float).to(device)
+            params.data = params.data * (1 << p)
+            if not ignore_rounding:
+                params.data = torch.round(params.data)
             params.data = torch.where(params.data > ma, ma, params.data)
             params.data = torch.where(params.data < mi, mi, params.data)
         scale(qmodel.embed.weight, 12, bits=16)
         scale(qmodel.linear_condition.weight, 8)
-        scale(qmodel.linear_condition.bias, 14, bits=32)
+        scale(qmodel.linear_condition.bias, 15, bits=32)
         scale(qmodel.linear_2.weight, 8)
         scale(qmodel.linear_2.bias, 15, bits=32)
         scale(qmodel.linear_3.weight, 8)
@@ -349,12 +336,12 @@ if __name__ == "__main__":
     batch_size = 4096
     device = "cpu"   # 2.2 it/sec (batch_size = 4096)
     #device = "cuda"  # 10 it/sec (batch_size = 4096)
-    n_epochs = 4
+    n_epochs = 10
     sgd_learning_rate = 1e-1
     adam_learning_rate = 1e-3
     N_FEATURES = 2382
     out_dir = Path("./out")
-    kif_files = ["kif.kif1"] * 4096  # TODO
+    #kif_files = ["kif.kif1"] * 4096  # TODO
 
     # 出力ディレクトリ作成
     checkpoint_dir = out_dir / "checkpoint"

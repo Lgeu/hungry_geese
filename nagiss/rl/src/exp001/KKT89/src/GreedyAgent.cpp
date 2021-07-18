@@ -503,7 +503,7 @@ struct Model {
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             embed.Forward(agent_features[idx_agents], agent_embedded[idx_agents]);
         }
-        for (auto&& v : agent_embedded.Ravel()) v += (short)(1 << 11);  // オーバーフロー？
+        for (auto&& v : agent_embedded.Ravel()) v += (short)(1 << 11);
         F::ClippedRelu_(agent_embedded, (short)(127 << 5));
 
         // (2)
@@ -516,7 +516,6 @@ struct Model {
                 condition_embedded[dim] += agent_embedded[idx_agents][dim] >> 2;  // Vector 構造体を作るべきだった感
             }
         }
-        //for (auto&& v : condition_embedded) v -= (short)(1 << 11);
         // scale -6
         alignas(32) static auto condition_embedded_8bit = array<signed char, hidden_1>();
         for (int dim = 0; dim < hidden_1; dim++) {
@@ -526,9 +525,7 @@ struct Model {
         // (3)
         alignas(32) static auto condition_hidden = array<out_dtype, hidden_2>();
         linear_condition.Forward(condition_embedded_8bit, condition_hidden);
-        F::ClippedRelu_(condition_hidden, (out_dtype)(127 << 7));
-        // scale 1
-        for (auto&& value : condition_hidden) value <<= 1;
+        F::ClippedRelu_(condition_hidden, (out_dtype)(127 << 8));
 
         // (4)
         alignas(32) static auto agent_embedded_8bit = Matrix<signed char, 4, hidden_1>();
@@ -546,7 +543,6 @@ struct Model {
                 hidden_state_2[idx_agents][dim] += condition_hidden[dim];
             }
         }
-        //for (auto&& v : hidden_state_2.Ravel()) v -= (out_dtype)(1 << 14);
         alignas(32) static auto hidden_state_2_8bit = Matrix<signed char, 4, hidden_2>();
         // scale -9
         for (int dim = 0; dim < hidden_state_2.Ravel().size(); dim++) {
@@ -576,6 +572,7 @@ struct Model {
     template<class Vector1, class Vector2>  // Stack<int, n> とか
     auto Predict(const array<Vector1, 4>& agent_features, const Vector2& condition_features, const array<int, 4>& rank) const {
         struct PolicyValue {
+            // 2 つの順番を変えたりメンバ変数を増やしたりしちゃいけない (memcpy してるので)
             float value;            // 盤面の評価値 (4.0 - 予測順位) [0.0, 3.0]
             array<float, 4> policy; // 手の評価値 (予測される子の n の割合) [0.0, 1.0]
         };
