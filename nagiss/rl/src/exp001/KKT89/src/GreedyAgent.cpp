@@ -480,9 +480,9 @@ struct Model {
 
     inline void LoadParameters() {
         FILE* fp;
-        fp = fopen("../src/parameters.bin", "rb");
+        fp = fopen("../src/param_008_02.bin", "rb");
         if (fp == NULL) {
-            printf("parameters.bin が見つからないよ\n");
+            printf("パラメータファイルが見つからないよ\n");
             exit(1);
         }
         fread(&embed.parameters.weight, embed.parameters.weight.Ravel().size(), sizeof(short), fp);
@@ -503,7 +503,7 @@ struct Model {
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             embed.Forward(agent_features[idx_agents], agent_embedded[idx_agents]);
         }
-        for (auto&& v : agent_embedded.Ravel()) v += (short)(1 << 11);
+        for (auto&& v : agent_embedded.Ravel()) v += (short)(1 << 11);  // オーバーフロー？
         F::ClippedRelu_(agent_embedded, (short)(127 << 5));
 
         // (2)
@@ -1379,33 +1379,36 @@ void TestModel() {
     //for (const auto& v : {}) {
     //    agent_features[0].push(v);
     //}
-    for (const auto& v : { 0,  128,  295,  384,  517,  595,  620,  647,  668,  748,  777,
-           866,  902,  926, 1127, 1266, 1326, 1359, 1372, 1397, 1437, 1490,
-          1556, 1632, 1711, 1714, 1718, 1722, 1727, 1731, 1735, 1739, 1743,
-          1749, 1762, 1787, 1824, 1862, 1903, 1959, 2027 }) {
+    for (const auto& v : { 49,  249,  383,  490,  527,  599,  620,  643,  672,  674,  817,
+           892,  815,  901,  923,  959, 1063, 1263, 1325, 1357, 1366, 1385,
+          1420, 1470, 1532, 1605, 1687, 1714, 1720, 1724, 1728, 1732, 1736,
+          1740, 1744, 1747, 1753, 1768, 1793, 1833, 1887, 1953, 2026 }) {
         agent_features[1].push(v);
     }
-    for (const auto& v : { 73,  133,  256,  432,  521,  599,  624,  651,  672,  695,  809,
-           863,  962,  909, 1149, 1264, 1330, 1359, 1371, 1393, 1430, 1483,
-          1552, 1629, 1710, 1714, 1718, 1722, 1727, 1731, 1735, 1739, 1743,
-          1749, 1761, 1783, 1817, 1855, 1899, 1956, 2026 }) {
+    for (const auto& v : { 3,  151,  333,  423,  525,  597,  618,  641,  672,  695,  769,
+           900,  758,  889,  943,  968, 1169, 1264, 1330, 1359, 1371, 1392,
+          1425, 1472, 1533, 1607, 1690, 1715, 1720, 1724, 1728, 1732, 1736,
+          1740, 1744, 1748, 1757, 1772, 1795, 1833, 1887, 1954, 2027 }) {
         agent_features[2].push(v);
     }
-    //for (const auto& v : {}) {
-    //    agent_features[3].push(v);
-    //}
+    for (const auto& v : {13,  254,  365,  453,  527,  599,  620,  643,  672,  729,  760,
+    868, 751, 848, 934, 970, 1063, 1263, 1327, 1358, 1368, 1389,
+        1426, 1476, 1537, 1608, 1688, 1715, 1720, 1724, 1728, 1732, 1736,
+        1740, 1744, 1747, 1755, 1771, 1798, 1838, 1891, 1955, 2027}) {
+        agent_features[3].push(v);
+    }
     static auto condition_features = Stack<int, 100>();
-    for (const auto& v : { 2104, 2121, 2235 }) {
+    for (const auto& v : { 2105, 2151, 2359 }) {
         condition_features.push(v);
     }
     static auto output = Matrix<float, 4, 5>();
     ev.model.Forward(agent_features, condition_features, output);
     output.Print();
-    //[[-8.6108e+00, 3.1641e-01, 1.0366e+00,  1.2217e+00,  1.3755e+00],
-    // [ 3.6675e+00, 6.3477e-03, 8.8159e-01, -8.0566e-02, -5.0781e-02],
-    // [-2.1658e+00, 1.4551e-01, 9.7241e-01,  6.3794e-01,  6.0352e-01],
-    // [-8.6108e+00, 3.1641e-01, 1.0366e+00,  1.2217e+00,  1.3755e+00]]
-    // https://www.kaggle.com/nagiss/geese-007-nn-prepare-training?scriptVersionId=68379870
+    //[[-6.7314e+00, 9.7656e-04, 2.9299e+00, 1.2954e+00, 1.3391e+00],
+    // [1.7566e+00, -1.4497e+00, 7.3657e+00, -1.6160e+00, -2.7239e+00],
+    // [8.3130e-01, 1.4124e+00, -2.4216e+00, 6.1880e+00, -1.2288e+00],
+    // [1.7998e+00, 5.0623e+00, 3.1167e+00, -3.2922e+00, -2.8096e+00]]
+    // https://www.kaggle.com/nagiss/geese-008-train-test?scriptVersionId=68452678&select=parameters.bin
 }
 void TestEvaluator() {
     using namespace std;

@@ -7,3 +7,5 @@ CppProperties.json
 *.obj
 Debug
 Release
+.ipynb_checkpoints
+.zip
