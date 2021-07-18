@@ -433,6 +433,25 @@ void Simulator::printKif() const {
         // 特徴量ベクトル
         for (int currentlySurvivingAgent = 0; currentlySurvivingAgent < 4; currentlySurvivingAgent++) {
             if (!stage.geese()[currentlySurvivingAgent].isSurvive()) continue;  // 4 エージェントとも同じ情報を持っている (はず) ので、生きてるやつを使う
+            // 入力
+            auto geese = std::array<Stack<int, 77>, 4>();
+            for (int i = 0; i < 4; i++) {
+                if (!stage.geese()[i].isSurvive()) continue;
+                for (const auto& p : stage.geese()[i].items()) {
+                    geese[i].push(p.id);
+                }
+            }
+            const auto foods = std::array<int, 2>{ stage.foods()[0].pos().id, stage.foods()[1].pos().id };
+            const auto& current_step = stage.mTurn;
+
+            // 出力
+            static auto agent_features = std::array<Stack<int, 100>, 4>();
+            static auto condition_features = Stack<int, 100>();
+
+            feature::ExtractFeatures(geese, foods, current_step, agent_features, condition_features);
+            stage.mAgentResult[currentlySurvivingAgent].mAgentFeatures = agent_features;
+            stage.mAgentResult[currentlySurvivingAgent].mConditionFeatures = condition_features;
+
             const auto& agentResult = stage.mAgentResult[currentlySurvivingAgent];
             // 各エージェントの特徴
             for (int i = 0; i < 4; i++) {

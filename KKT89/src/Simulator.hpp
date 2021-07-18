@@ -8,6 +8,7 @@
 #include "Parameter.hpp"
 #include "Agent.hpp"
 #include "Timer.hpp"
+#include "Features.hpp"
 
 namespace hungry_geese {
     
