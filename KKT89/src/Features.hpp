@@ -149,7 +149,7 @@ struct Max {
         data[(int)Features::N_EXCLUSIVELY_REACHABLE_POSITIONS_WITHIN_8_STEPS] = 77;
         data[(int)Features::N_ALIVING_GEESE] = 4;
         data[(int)Features::N_OCCUPIED_POSITIONS] = 77;
-        data[(int)Features::STEP] = 199;
+        data[(int)Features::STEP] = 198;
     }
     const int& operator[](const Features& feature) const {
         return data[(int)feature];

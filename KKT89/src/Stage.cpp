@@ -25,6 +25,9 @@ const Actions& Stage::actions() const {
 }
 
 bool Stage::isEnd() const {
+    if (mTurn == 199) {
+        return true;
+    }
     int Survivor = 0;
     for (Goose goose: mGeese) {
         if (goose.isSurvive()) {

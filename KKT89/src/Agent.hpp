@@ -10,7 +10,7 @@ struct Agent {
     Agent();
 
     // 行動を決定する
-    void setActions(Stage& aStage, int aIndex);
+    void setActions(Stage& aStage, int aIndex, float timelimit);
 
     // エージェント
     MctsAgent Agent0;

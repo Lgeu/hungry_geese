@@ -22,6 +22,12 @@ struct Simulator {
     std::string getDatetimeStr() const;
     // 棋譜IDを設定
     void setKifID();
+    // 探索の時間を設定
+    void SetTimeLimit(float atimelimit);
+    // パラメータの設定
+    std::array<std::string, 4> parameter;
+    // 棋譜の出力するディレクトリを指定
+    std::string directory = "./src/out/";
 
     // ゲームの実行
     void run();
@@ -35,6 +41,8 @@ struct Simulator {
     Agent mAgent;
     // タイマー
     Timer mTimer;
+    // 探索にかける時間
+    float timelimit = 0.3;
 
     // 乱数
     Random rand;

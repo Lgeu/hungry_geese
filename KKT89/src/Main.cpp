@@ -26,6 +26,24 @@ int main(int aArgc, const char* aArgv[]) {
             else if (std::strcmp(aArgv[n], "-j") == 0) {
                 willPrintKif = true;
             }
+            // 探索時間の設定
+            else if (std::strcmp(aArgv[n], "-t") == 0) {
+                float timelimit = float(std::stof(aArgv[n + 1], nullptr));
+                n += 1;
+                fSim.SetTimeLimit(timelimit);
+            }
+            // パラメータの設定
+            else if (std::strcmp(aArgv[n], "-p") == 0) {
+                for (int i = 0; i < 4; ++i) {
+                    fSim.parameter[i] = aArgv[n + 1 + i];
+                }
+                n += 4;
+            }
+            // 出力先のディレクトリを指定
+            else if (std::strcmp(aArgv[n], "-o") == 0) {
+                fSim.directory = aArgv[n + 1];
+                n += 1;
+            }
         }
     }
 

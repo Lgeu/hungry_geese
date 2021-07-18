@@ -15,8 +15,12 @@ struct MctsAgent {
     Evaluator model;
     Duct duct; 
 
+    // 制限時間
+    float timelimit;
+    void SetTimeLimit(float atimelimit);
+
     // 実行
-    AgentResult run(const Stage& aStage, int aIndex);
+    AgentResult run(const Stage& aStage, int aIndex, float timelimit);
 
     // 評価値最大の行動を返す
     AgentResult solve1(const Stage& aStage, int aIndex);

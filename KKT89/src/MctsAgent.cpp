@@ -7,9 +7,13 @@ namespace hungry_geese {
 // コンストラクタ
 MctsAgent::MctsAgent() : model(), duct() {}
 
+void MctsAgent::SetTimeLimit(float atimelimit) {
+    timelimit = atimelimit;
+}
+
 //------------------------------------------------------------------------------
 // 実行
-AgentResult MctsAgent::run(const Stage& aStage, int aIndex) {
+AgentResult MctsAgent::run(const Stage& aStage, int aIndex, float timelimit) {
     // 0ターン目は評価値最大の行動をする
     if (aStage.mTurn == 0) {
         return solve1(aStage, aIndex);
@@ -19,7 +23,8 @@ AgentResult MctsAgent::run(const Stage& aStage, int aIndex) {
         duct.Setprintlog(false);
         AgentResult result;
         duct.InitDuct(aStage, aIndex);
-        duct.Search(0.3);
+        // 秒数はここで指定
+        duct.Search(timelimit);
         auto rootnode = duct.RootNode();
         for (int i = 0; i < 4; ++i) {
             result.mPolicy[i] = (float)rootnode.n[0][i] / (float)(rootnode.n[0][0] + rootnode.n[0][1] + rootnode.n[0][2] + rootnode.n[0][3]);

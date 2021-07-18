@@ -33,6 +33,10 @@ void Simulator::setKifID() {
     KifID = Date + "_" + Seed;
 }
 
+void Simulator::SetTimeLimit(float atimelimit) {
+    timelimit = atimelimit;
+}
+
 void Simulator::run() {
     // 初期条件の設定
     auto &stage0 = mGame.mStages[0];
@@ -108,7 +112,7 @@ void Simulator::run() {
             }
 
             mTimer.start();
-            mAgent.setActions(stage, j);
+            mAgent.setActions(stage, j, timelimit);
             mTimer.stop();
 
             // 残り時間の計算
@@ -318,6 +322,9 @@ void Simulator::run() {
         // ターン数を進める
         ++mGame.mTurn;
     }
+    for (int i = 0; i < 4; ++i) {
+        mGame.mStages[mGame.turn()].mGeese[i].setIsSurvive(false);;
+    }
 
     // 順位確定
     mGame.calc_Ranking();
@@ -326,7 +333,7 @@ void Simulator::run() {
 }
 
 void Simulator::printKif() const {
-    std::string filename = "./src/out/" + KifID + KifExtension;
+    std::string filename = directory + KifID + KifExtension;
     std::fstream file_out;
 
     file_out.open(filename, std::ios_base::out);
@@ -344,13 +351,13 @@ void Simulator::printKif() const {
     // 乱数のシード値
     file_out << rand.x << std::endl;
     // エージェント1の情報(string)
-    file_out << "test1" << std::endl;
+    file_out << parameter[0] << std::endl;
     // エージェント2の情報(string)
-    file_out << "test2" << std::endl;
+    file_out << parameter[1] << std::endl;
     // エージェント3の情報(string)
-    file_out << "test3" << std::endl;
+    file_out << parameter[2] << std::endl;
     // エージェント4の情報(string)
-    file_out << "test4" << std::endl;
+    file_out << parameter[3] << std::endl;
 
     // 各ステップの出力
     for (int step = 0; step <= mGame.turn(); ++step) {
