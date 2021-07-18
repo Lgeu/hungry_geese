@@ -242,7 +242,7 @@ const std::array<std::array<float, 4>, 4>& Duct::Node::GetWorth() const {
 
 Duct::Node::Node() : state(), policy(), value(), worth(), n(), n_children(), children_offset(), node_type() {}
 
-Duct::Node::Node(const State& aState, Stack<Node*, BIG>& children_buffer) : state(aState), policy(), value(), worth(), n(), children_offset(), node_type() {
+Duct::Node::Node(const State& aState, Stack<Node*, children_buffer_size>& children_buffer) : state(aState), policy(), value(), worth(), n(), children_offset(), node_type() {
     policy[0][0] = -100.0;
     value[0] = -100.0;
 
@@ -323,7 +323,7 @@ int Duct::Node::ChooseMove(const int& t_sum) {
     return k;
 }
 
-Duct::Node& Duct::Node::KthChildren(Stack<Node, BIG>& node_buffer, Stack<Node*, BIG>& children_buffer, const int& k) {
+Duct::Node& Duct::Node::KthChildren(Stack<Node, node_buffer_size>& node_buffer, Stack<Node*, children_buffer_size>& children_buffer, const int& k) {
     ASSERT_RANGE(k, 0, n_children);
     Node* child = children_buffer[children_offset + k];
     if (child == nullptr) {
@@ -465,7 +465,6 @@ void Duct::Search(const float timelimit) {
     while (nagiss_library::time() - timebegin < timelimit) {
         Iterate();
         t_sum++;
-        if (t_sum >=3)break;
     }
 }
 

@@ -14,7 +14,8 @@ struct Duct {
     // コンストラクタ
     Duct();
 
-    constexpr static int BIG = 100000;
+    constexpr static int node_buffer_size = 10000;
+    constexpr static int children_buffer_size = 100000;
     void Setprintlog(bool f);
     bool printlog = false;
 
@@ -82,7 +83,7 @@ struct Duct {
 
         Node();
 
-        Node(const State& aState, Stack<Node*, BIG>& children_buffer);
+        Node(const State& aState, Stack<Node*, children_buffer_size>& children_buffer);
 
         bool Expanded() const; // 既にモデルによって評価されているかを返す
         // アーク評価値
@@ -91,13 +92,13 @@ struct Duct {
         int ChooseMove(const int& t_sum);
         // k 番目の行動によって遷移する子ノードを返す 
         // その子ノードが初めて遷移するものだった場合、新たに領域を確保してノードを作る
-        Node& KthChildren(Stack<Node, BIG>& node_buffer, Stack<Node*, BIG>& children_buffer, const int& k);
+        Node& KthChildren(Stack<Node, node_buffer_size>& node_buffer, Stack<Node*, children_buffer_size>& children_buffer, const int& k);
         // デバック用
         void Debug() const;
     };
 
-    Stack<Node, BIG> node_buffer;
-    Stack<Node*, BIG> children_buffer;
+    Stack<Node, node_buffer_size> node_buffer;
+    Stack<Node*, children_buffer_size> children_buffer;
     Evaluator model;
     int t_sum; // 累計試行回数
 
