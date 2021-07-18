@@ -25,7 +25,7 @@ struct Simulator {
     // 探索の時間を設定
     void SetTimeLimit(float atimelimit);
     // パラメータの設定
-    std::array<std::string, 4> parameter;
+    std::array<std::string, 4> parameter = {"test", "test", "test", "test"};
     // 棋譜の出力するディレクトリを指定
     std::string directory = "./src/out/";
 
