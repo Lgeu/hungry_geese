@@ -1,4 +1,4 @@
-#ifndef NAGISS_LIBRARY_HPP
+﻿#ifndef NAGISS_LIBRARY_HPP
 #define NAGISS_LIBRARY_HPP
 #include<iostream>
 #include<iomanip>

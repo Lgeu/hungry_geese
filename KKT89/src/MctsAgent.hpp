@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "AgentResult.hpp"
 #include "Stage.hpp"
 #include "Stack.hpp"

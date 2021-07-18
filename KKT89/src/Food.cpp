@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Food.hpp"
 
 namespace hungry_geese {

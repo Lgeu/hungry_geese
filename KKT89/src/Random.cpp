@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Random.hpp"
 #include "Assert.hpp"
 

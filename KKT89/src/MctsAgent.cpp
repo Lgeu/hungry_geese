@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "MctsAgent.hpp"
 
 namespace hungry_geese {

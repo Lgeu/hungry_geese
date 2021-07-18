@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Stage.hpp"
 
 namespace hungry_geese {

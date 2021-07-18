@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Timer.hpp"
 
 namespace hungry_geese {

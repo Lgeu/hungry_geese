@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Parameter.hpp"
 #include "Stack.hpp"
 #include "Point.hpp"

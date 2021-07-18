@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Agent.hpp"
 
 namespace hungry_geese {

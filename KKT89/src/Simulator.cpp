@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #define _CRT_SECURE_NO_WARNINGS
 #include "Simulator.hpp"
 
@@ -117,7 +117,7 @@ void Simulator::run() {
 
             // 残り時間の計算
             float get_time = mTimer.elapsedSec();
-            get_time = 1.0 - get_time;
+            get_time = 1.0 - get_time;  // Lgeu: ここやばそう
             if (get_time < 0) {
                 stage.mRemainingTime[j] += get_time;
             }

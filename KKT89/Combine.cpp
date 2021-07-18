@@ -1,3 +1,5 @@
+﻿#define _CRT_SECURE_NO_WARNINGS
+
 #include "src/Duct.cpp"
 #include "src/MctsAgent.cpp"
 #include "src/Random.cpp"

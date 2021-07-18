@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "GreedyAgent.hpp"
 
 namespace hungry_geese {

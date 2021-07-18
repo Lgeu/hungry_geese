@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "library.hpp"
 #include "Point.hpp"
 #include <iostream>
@@ -391,12 +391,14 @@ struct GeeseNet{
 
 namespace test{
     void CheckLinear(){
+        /*
         auto linear = Linear<3, 4>();
         std::iota(linear.parameters.weight.Ravel().begin(), linear.parameters.bias.end(), 0.0f);
         auto input = std::array<float, 3>{3.0, -2.0, 1.0};
         auto output = std::array<float, 4>();
         linear.Forward(input, output);
         for(int i=0; i<4; i++) std::cout << output[i] << " \n"[i==3];  // => 12, 19, 26, 33
+        */
     }
     void CheckTorusConv2d(){
         constexpr auto input_dim = 4;
@@ -452,7 +454,7 @@ namespace test{
         auto input = Tensor3<float, 17, 7, 11>();
         auto output_policy = array<float, 4>();
         auto output_value = 0.0f;
-        auto rng = Random(time() * 1e9);
+        auto rng = nagiss_library::Random(time() * 1e9);
         auto t0 = time();
         // ランダムにパラメータをセットする
         // モデルがパラメータ以外の変数を持っていた場合使えない、あと sqrt 部分もやばい

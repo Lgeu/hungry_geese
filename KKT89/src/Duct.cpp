@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "Duct.hpp"
 
 namespace hungry_geese {
@@ -99,12 +99,7 @@ unsigned char Duct::State::goose_size(unsigned char idx_agent) {
 }
 
 Duct::State Duct::State::NextState(NodeType node_type, const unsigned char agent_action, const unsigned char food_sub) const {
-    State nextstate;
-    nextstate.geese = geese;
-    nextstate.foods = foods;
-    nextstate.current_step = current_step + 1;
-    nextstate.last_actions = last_actions;
-    nextstate.ranking = ranking;
+    State nextstate(*this);
     if (node_type == NodeType::AGENT_NODE) {
         Simulate(nextstate, agent_action);
         nextstate.last_actions = agent_action;
@@ -124,12 +119,12 @@ Duct::State Duct::State::NextState(NodeType node_type, const unsigned char agent
 }
 
 void Duct::State::Simulate(State &state, unsigned char agent_action) {
-    static std::array<Cpoint, 77> n_goose;
-    static std::array<signed char, 5> n_boundary;
+    static std::array<Cpoint, 77> new_geese;
+    static std::array<signed char, 5> new_boundary;
     static std::array<signed char, 4> pre_gooselength;
     unsigned char index = 0;
     for (unsigned char i = 0; i < 4; ++i) {
-        n_boundary[i] = index;
+        new_boundary[i] = index;
         pre_gooselength[i] = state.boundary[i + 1] - state.boundary[i];
         if (pre_gooselength[i] == 0) {
             agent_action /= 4;
@@ -144,41 +139,38 @@ void Duct::State::Simulate(State &state, unsigned char agent_action) {
                 state.foods[j] = Duct::Cpoint(-1);
             }
         }
-        for (int j = state.boundary[i]; j < state.boundary[i + 1]; ++j) {
-            if (j + 1 == state.boundary[i + 1] and !eatFood) {
-                continue;
-            }
-            if (head == state.geese[j]) {
-                index = n_boundary[i];
+        for (int j = state.boundary[i]; j < state.boundary[i + 1]; ++j, ++index) {
+            if (head == state.geese[j] && (j != state.boundary[i + 1] - 1 || eatFood)) {
+                // 頭が前ステップの自分のどこかとぶつかっている && (ぶつかっているのはしっぽ以外 || しっぽだけどちょうど餌を食べた)  // 自分の尻尾にぶつかりながら餌を食べること、無くないか？
+                index = new_boundary[i];  // 脱落
                 break;
             }
-            n_goose[index] = state.geese[j];
+            new_geese[index] = state.geese[j];
         }
         if ((state.current_step + 1) % hungry_geese::Parameter::hunger_rate == 0) {
-            if (n_boundary[i] !=index) {
+            if (new_boundary[i] != index) {
                 index--;
             }
         }
     }
-    n_boundary[4] = index;
+    new_boundary[4] = index;
+    state.current_step++;
+
+    // この時点で new_geese と new_boundary は自己衝突に関しては正しい状態
+
     static std::array<unsigned char, 77> simulate_goose_positions;
-    for (int i = 0; i < 77; ++i) {
-        simulate_goose_positions[i] = 0;
-    }
-    for (int i = 0; i < 4; ++i) {
-        for (int j = n_boundary[i]; j < n_boundary[i+1] ; ++j) {
-            simulate_goose_positions[n_goose[j].Id()]++;
-        }
+    std::fill(simulate_goose_positions.begin(), simulate_goose_positions.end(), 0);
+    for (int i = 0; i < index; ++i) {
+        simulate_goose_positions[new_geese[i].Id()]++;
     }
     index = 0;
     for (int i = 0; i < 4; ++i) {
         state.boundary[i] = index;
-        if(n_boundary[i] < n_boundary[i + 1]) {
-            auto head = n_goose[n_boundary[i]];
+        if(new_boundary[i] < new_boundary[i + 1]) {
+            auto head = new_geese[new_boundary[i]];
             if (simulate_goose_positions[head.Id()] == 1) {
-                for (int j = n_boundary[i]; j < n_boundary[i+1] ; ++j) {
-                    state.geese[index] = n_goose[j];
-                    index++;
+                for (int j = new_boundary[i]; j < new_boundary[i + 1]; ++j, ++index) {
+                    state.geese[index] = new_geese[j];
                 }
             }
         }
@@ -487,7 +479,7 @@ void Duct::Iterate() {
     }
 
     // 葉ノードの処理
-    std::array<float, 4> value;
+    std::array<float, 4> value{};
     if (v->state.Finished()) {
         // 決着がついた場合、順位に応じて value を設定
         for (int i = 0; i < 3; ++i) {
@@ -506,8 +498,8 @@ void Duct::Iterate() {
         }
     }
     else {
-        Node* leaf = v;
-        std::array<Stack<int, 77>, 4> geese;
+        Node* const leaf = v;
+        std::array<Stack<int, 77>, 4> geese{};
         std::array<int, 2> foods;
         for (int i = 0; i < 4; ++i) {
             for (int j = v->state.boundary[i]; j < v->state.boundary[i + 1]; ++j) {
@@ -523,7 +515,7 @@ void Duct::Iterate() {
             for (int j = 0; j < 4; ++j) {
                 v->policy[i][j] = res.policy[j];
             }
-            v->value[i] = res.value;
+            value[i] = res.value;
             std::swap(geese[0], geese[i]);
         }
     }
@@ -537,7 +529,7 @@ void Duct::Iterate() {
                 continue;
             }
             unsigned char opt_action = k % 3;
-            k /= 3; 
+            k /= 3;
             unsigned char ith_idx_lastmove = 0;
             if (v->state.last_actions & (1 << (idx_agent + idx_agent))) ith_idx_lastmove++;
             if (v->state.last_actions & (1 << (idx_agent + idx_agent + 1))) ith_idx_lastmove+=2;
