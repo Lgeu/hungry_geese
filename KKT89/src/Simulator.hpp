@@ -6,9 +6,9 @@
 #include "Random.hpp"
 #include "Game.hpp"
 #include "Parameter.hpp"
-#include "Agent.hpp"
 #include "Timer.hpp"
 #include "Features.hpp"
+#include "Duct.hpp"
 
 namespace hungry_geese {
     
@@ -25,7 +25,7 @@ struct Simulator {
     // 探索の時間を設定
     void SetTimeLimit(float atimelimit);
     // パラメータの設定
-    std::array<std::string, 4> parameter = {"test", "test", "test", "test"};
+    std::array<const char*, 4> parameter = {"./src/param_010_01.bin", "./src/param_010_01.bin", "./src/param_010_01.bin", "./src/param_010_01.bin"};
     // 棋譜の出力するディレクトリを指定
     std::string directory = "./src/out/";
 
@@ -35,6 +35,12 @@ struct Simulator {
     // 棋譜の出力
     void printKif() const;
 
+    // Agent
+    Duct Agent0;
+    Duct Agent1;
+    Duct Agent2;
+    Duct Agent3;
+
     // ゲーム全体
     Game mGame;
     // Agent
@@ -43,6 +49,14 @@ struct Simulator {
     Timer mTimer;
     // 探索にかける時間
     float timelimit = 0.3;
+
+    // 行動一覧
+    const Actions Idx_to_Actions = {
+        Action::NORTH,
+        Action::EAST,
+        Action::SOUTH,
+        Action::WEST,
+    };
 
     // 乱数
     Random rand;

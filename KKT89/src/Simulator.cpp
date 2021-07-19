@@ -59,6 +59,11 @@ void Simulator::run() {
     for (int i = 0; i < 4; ++i) {
         stage0.mRemainingTime[i] = Parameter::remainingOverageTime;
     }
+    // パラメータの設定
+    Agent0.nnue.SetParameter(parameter[0]);
+    Agent1.nnue.SetParameter(parameter[1]);
+    Agent2.nnue.SetParameter(parameter[2]);
+    Agent3.nnue.SetParameter(parameter[3]);
 
     // ゲーム終了までターンを進行させる
     for (int i = 0; i+1 < Parameter::episodeSteps; ++i) {
@@ -112,7 +117,23 @@ void Simulator::run() {
             }
 
             mTimer.start();
-            mAgent.setActions(stage, j, timelimit);
+            if (j == 0) {
+                Agent0.InitDuct(stage, j);
+                stage.mAgentResult[j] = Agent0.Search(timelimit);
+            }
+            else if (j == 1) {
+                Agent1.InitDuct(stage, j);
+                stage.mAgentResult[j] = Agent1.Search(timelimit);
+            }
+            else if (j == 2) {
+                Agent2.InitDuct(stage, j);
+                stage.mAgentResult[j] = Agent2.Search(timelimit);
+            }
+            else if (j == 3) {
+                Agent3.InitDuct(stage, j);
+                stage.mAgentResult[j] = Agent3.Search(timelimit);
+            }
+            stage.mActions[j] = Idx_to_Actions[stage.mAgentResult[j].mAction];
             mTimer.stop();
 
             // 残り時間の計算

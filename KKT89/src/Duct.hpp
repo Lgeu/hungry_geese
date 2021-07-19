@@ -5,8 +5,10 @@
 #include "Stage.hpp"
 #include "Stack.hpp"
 #include "Assert.hpp"
+#include "AgentResult.hpp"
 #include "library.hpp"
 #include "Evaluation_function.hpp"
+#include "Evaluator.hpp"
 
 namespace hungry_geese {
 
@@ -14,8 +16,8 @@ struct Duct {
     // コンストラクタ
     Duct();
 
-    constexpr static int node_buffer_size = 10000;
-    constexpr static int children_buffer_size = 100000;
+    constexpr static int node_buffer_size = 100000;
+    constexpr static int children_buffer_size = 10000000;
     void Setprintlog(bool f);
     bool printlog = false;
 
@@ -100,6 +102,7 @@ struct Duct {
     Stack<Node, node_buffer_size> node_buffer;
     Stack<Node*, children_buffer_size> children_buffer;
     Evaluator model;
+    evaluation_function::Evaluator nnue;
     int t_sum; // 累計試行回数
 
     Duct(const Node& arg_state);
@@ -108,7 +111,8 @@ struct Duct {
     void InitDuct(hungry_geese::Stage aStage, int aIndex);
 
     // 探索
-    void Search(const float timelimit);
+    // 返り値をAgentResultにしたい
+    AgentResult Search(const float timelimit);
     Node& RootNode();
     void Iterate();
 

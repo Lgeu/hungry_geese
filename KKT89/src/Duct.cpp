@@ -203,7 +203,7 @@ bool Duct::State::Finished() const {
             surviver++;
         }
     }
-    if(surviver <= 1) {
+    if(surviver <= 1 or current_step >= 199) {
         return true;
     }
     else {
@@ -236,7 +236,6 @@ Duct::Node::Node() : state(), policy(), value(), worth(), n(), n_children(), chi
 
 Duct::Node::Node(const State& aState, Stack<Node*, children_buffer_size>& children_buffer) : state(aState), policy(), value(), worth(), n(), children_offset(), node_type() {
     policy[0][0] = -100.0;
-    value[0] = -100.0;
 
     if (aState.foods[0].Id() == -1 or aState.foods[1].Id() == -1) {
         node_type = NodeType::FOOD_NODE;
@@ -274,7 +273,6 @@ bool Duct::Node::Expanded() const {
 
 float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int& t_sum) {
     constexpr float c_puct = 1.0;
-    float n_sum = 1e-1 + n[idx_agent][0] + n[idx_agent][1] + n[idx_agent][2] + n[idx_agent][3];
     return GetWorth()[idx_agent][idx_move] / (float)(1e-1 + n[idx_agent][idx_move]) + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt(t_sum) / (float)(1 + n[idx_agent][idx_move]);
 }
 
@@ -444,20 +442,57 @@ void Duct::InitDuct(hungry_geese::Stage aStage, int aIndex) {
     auto node = Duct::Node(state, children_buffer);
     node_buffer.clear();
     node_buffer.push(node);
-    if (printlog) {
-        // ターン情報
-        std::cout << "Turn : " << aStage.mTurn << " " << "Agent : " << aIndex << std::endl;
-        state.Debug();
-    }
 }
 
 //------------------------------------------------------------------------------
-void Duct::Search(const float timelimit) {
-    double timebegin = nagiss_library::time();
-    while (nagiss_library::time() - timebegin < timelimit) {
-        Iterate();
-        t_sum++;
+AgentResult Duct::Search(const float timelimit) {
+    AgentResult result;
+    if (node_buffer[0].state.current_step == 0) {
+        std::array<nagiss_library::Stack<int, 77>, 4> geese;
+        std::array<int, 2> foods;
+        std::array<int, 4> rank;
+        auto Convert_CpointArray_to_IntArray=[](const State &state, std::array<nagiss_library::Stack<int, 77>, 4> &geese, std::array<int, 2>& foods, std::array<int, 4> rank)->void{
+            for (int i = 0; i < 4; ++i) {
+                for (int j = state.boundary[i]; j < state.boundary[i + 1]; ++j) {
+                    geese[i].push(state.geese[j].Id());
+                }
+            }
+            for (int i = 0; i < 2; ++i) {
+                foods[i] = state.foods[i].Id();
+            }
+            for (int i = 0; i < 4; ++i) {
+                rank[i] = state.ranking[i];
+            }
+        };
+        auto rootnode = RootNode();
+        Convert_CpointArray_to_IntArray(rootnode.state, geese, foods, rank);
+        auto res = nnue.evaluate(geese, foods, rootnode.state.current_step, rank);
+        result.mValue = res[0].value;
+        for (int i = 0; i < 4; ++i) {
+            result.mPolicy[i] = res[0].policy[i];
+        }
     }
+    else {
+        double timebegin = nagiss_library::time();
+        while (nagiss_library::time() - timebegin < timelimit) {
+            Iterate();
+            t_sum++;
+        }
+        auto rootnode = RootNode();
+        result.mValue = rootnode.value[0];
+        for (int i = 0; i < 4; ++i) {
+            result.mPolicy[i] = (float)rootnode.n[0][i] / (float)(rootnode.n[0][0] + rootnode.n[0][1] + rootnode.n[0][2] + rootnode.n[0][3]);
+        }
+    }
+    unsigned char opt_action = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (result.mPolicy[opt_action] < result.mPolicy[i]) {
+            opt_action = i;
+        }
+    }
+    result.mAction = opt_action;
+    std::cerr << (int)node_buffer[0].state.current_step << " " << t_sum << " " << node_buffer.size() << " " << children_buffer.size() << std::endl;
+    return result;
 }
 
 Duct::Node& Duct::RootNode() {
@@ -467,7 +502,7 @@ Duct::Node& Duct::RootNode() {
 void Duct::Iterate() {
     // 根から葉に移動
     Node* v = &RootNode();
-    Stack<int, 100> path;
+    Stack<int, 200> path;
     // 展開されてない、エージェントのノードに到達したら抜ける
     while (v->Expanded() or v->node_type == NodeType::FOOD_NODE) {
         int move_idx = v->ChooseMove(t_sum);
@@ -481,6 +516,21 @@ void Duct::Iterate() {
     // 葉ノードの処理
     std::array<float, 4> value{};
     if (v->state.Finished()) {
+        for (int i = 0; i < 4; ++i) {
+            // 生き残ってる
+            if (v->state.boundary[i + 1] > v->state.boundary[i]) {
+                int rank = 1;
+                for (int j = 0; j < 4; ++j) {
+                    if (i == j) {
+                        continue;
+                    }
+                    if (v->state.boundary[j + 1] - v->state.boundary[j] > v->state.boundary[i + 1] - v->state.boundary[i]) {
+                        rank++;
+                    }
+                }
+                v->state.ranking[i] = rank;
+            }
+        }
         // 決着がついた場合、順位に応じて value を設定
         for (int i = 0; i < 3; ++i) {
             for (int j = i + 1; j < 4; ++j) {
@@ -499,24 +549,29 @@ void Duct::Iterate() {
     }
     else {
         Node* const leaf = v;
-        std::array<Stack<int, 77>, 4> geese{};
+        std::array<nagiss_library::Stack<int, 77>, 4> geese;
         std::array<int, 2> foods;
-        for (int i = 0; i < 4; ++i) {
-            for (int j = v->state.boundary[i]; j < v->state.boundary[i + 1]; ++j) {
-                geese[i].push(v->state.geese[j].Id());
+        std::array<int, 4> rank;
+        auto Convert_CpointArray_to_IntArray=[](const State &state, std::array<nagiss_library::Stack<int, 77>, 4> &geese, std::array<int, 2>& foods, std::array<int, 4> rank)->void{
+            for (int i = 0; i < 4; ++i) {
+                for (int j = state.boundary[i]; j < state.boundary[i + 1]; ++j) {
+                    geese[i].push(state.geese[j].Id());
+                }
             }
-        }
-        for (int i = 0; i < 2; ++i) {
-            foods[i] = v->state.foods[i].Id();
-        }
+            for (int i = 0; i < 2; ++i) {
+                foods[i] = state.foods[i].Id();
+            }
+            for (int i = 0; i < 4; ++i) {
+                rank[i] = state.ranking[i];
+            }
+        };
+        Convert_CpointArray_to_IntArray(v->state, geese, foods, rank);
+        auto res = nnue.evaluate(geese, foods, v->state.current_step, rank);
         for (int i = 0; i < 4; ++i) {
-            std::swap(geese[0], geese[i]);
-            auto res = model.evaluate(geese, foods);
             for (int j = 0; j < 4; ++j) {
-                v->policy[i][j] = res.policy[j];
+                v->policy[i][j] = res[i].policy[j];
             }
-            value[i] = res.value;
-            std::swap(geese[0], geese[i]);
+            value[i] = res[i].value;
         }
     }
 

@@ -4,6 +4,7 @@
 #include "Stack.hpp"
 #include "Assert.hpp"
 #include "Evaluation_function.hpp"
+#include "Evaluator.hpp"
 #include "Duct.hpp"
 
 namespace hungry_geese {

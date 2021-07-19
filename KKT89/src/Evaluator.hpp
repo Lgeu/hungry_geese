@@ -2,6 +2,12 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "library.hpp"
+#include <cstring>
+#ifdef _MSC_VER
+#include <intrin.h>
+#else
+#include <x86intrin.h>
+#endif
 
 namespace hungry_geese {
 
@@ -35,7 +41,7 @@ struct Matrix {
     constexpr inline void Fill(const T& fill_value) {
         fill(Ravel().begin(), Ravel().end(), fill_value);
     }
-    constexpr inline inline auto& operator+=(const Matrix& rhs) {
+    constexpr inline auto& operator+=(const Matrix& rhs) {
         for (int i = 0; i < dim1 * dim2; i++) Ravel()[i] += rhs.Ravel()[i];
         return *this;
     }
@@ -76,7 +82,7 @@ struct Tensor3 {
         static_assert(dim1 * dim2 * dim3 == new_dim_1 * new_dim_2, "View の次元がおかしいよ");
         union U {
             Tensor3 data;
-            Matrix<new_dim_1, new_dim_2> view;
+            Matrix<T, new_dim_1, new_dim_2> view;
         };
         return ((U*)this)->view;
     }
@@ -501,50 +507,50 @@ struct Model {
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             embed.Forward(agent_features[idx_agents], agent_embedded[idx_agents]);
         }
-        for (auto&& v : agent_embedded.Ravel()) v += (short)(1 << 11);
-        F::ClippedRelu_(agent_embedded, (short)(127 << 5));
+        for (auto&& v : agent_embedded.Ravel()) v += (short)(1 << 10);
+        F::ClippedRelu_(agent_embedded, (short)(127 << 4));
 
         // (2)
         alignas(32) static auto condition_embedded = array<short, hidden_1>();
         embed.Forward(condition_features, condition_embedded);
-        for (auto&& v : condition_embedded) v += (short)(1 << 11);
-        F::ClippedRelu_(condition_embedded, (short)(127 << 5));
+        for (auto&& v : condition_embedded) v += (short)(1 << 10);
+        F::ClippedRelu_(condition_embedded, (short)(127 << 4));
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             for (int dim = 0; dim < hidden_1; dim++) {
                 condition_embedded[dim] += agent_embedded[idx_agents][dim] >> 2;  // Vector 構造体を作るべきだった感
             }
         }
-        // scale -6
+        // scale -5
         alignas(32) static auto condition_embedded_8bit = array<signed char, hidden_1>();
         for (int dim = 0; dim < hidden_1; dim++) {
-            condition_embedded_8bit[dim] = condition_embedded[dim] + (1 << 5) >> 6;
+            condition_embedded_8bit[dim] = condition_embedded[dim] + (1 << 4) >> 5;
         }
 
         // (3)
         alignas(32) static auto condition_hidden = array<out_dtype, hidden_2>();
         linear_condition.Forward(condition_embedded_8bit, condition_hidden);
-        F::ClippedRelu_(condition_hidden, (out_dtype)(127 << 8));
+        F::ClippedRelu_(condition_hidden, (out_dtype)(127 << 9));
 
         // (4)
         alignas(32) static auto agent_embedded_8bit = Matrix<signed char, 4, hidden_1>();
-        // scale -5
+        // scale -4
         for (int dim = 0; dim < agent_embedded.Ravel().size(); dim++) {
-            agent_embedded_8bit.Ravel()[dim] = agent_embedded.Ravel()[dim] + (1 << 4) >> 5;
+            agent_embedded_8bit.Ravel()[dim] = agent_embedded.Ravel()[dim] + (1 << 3) >> 4;
         }
         alignas(32) static auto hidden_state_2 = Matrix<out_dtype, 4, hidden_2>();  // linear_3 でも使い回す
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             linear_2.Forward(agent_embedded_8bit[idx_agents], hidden_state_2[idx_agents]);
         }
-        F::ClippedRelu_(hidden_state_2, (out_dtype)(127 << 8));
+        F::ClippedRelu_(hidden_state_2, (out_dtype)(127 << 9));
         for (int idx_agents = 0; idx_agents < 4; idx_agents++) {
             for (int dim = 0; dim < hidden_2; dim++) {
                 hidden_state_2[idx_agents][dim] += condition_hidden[dim];
             }
         }
         alignas(32) static auto hidden_state_2_8bit = Matrix<signed char, 4, hidden_2>();
-        // scale -9
+        // scale -10
         for (int dim = 0; dim < hidden_state_2.Ravel().size(); dim++) {
-            hidden_state_2_8bit.Ravel()[dim] = hidden_state_2.Ravel()[dim] + (1 << 8) >> 9;
+            hidden_state_2_8bit.Ravel()[dim] = hidden_state_2.Ravel()[dim] + (1 << 9) >> 10;
         }
 
         // (5)
@@ -700,7 +706,7 @@ struct BitBoard {
         using nagiss_library::popcount;
         return popcount(lo) + popcount(hi);
     }
-    template<unsigned size>
+    template<size_t size>
     inline int Neighbor(const int& idx, const array<nagiss_library::Vec2<int>, size>& dyxs) const {
         int res = 0;
         auto yx0 = nagiss_library::Vec2<int>{ idx / 11, idx % 11 };
@@ -1323,8 +1329,11 @@ struct Evaluator {
     Model<feature::NN_INPUT_DIM, 5, 256, 32> model;  // Python 側の都合でひとつ多く持つ
     inline Evaluator() {
         // モデルのパラメータ設定
-        model.LoadParameters("../src/param_008_03.bin");
+        model.LoadParameters("./src/param_010_01.bin");
         // TODO
+    }
+    void SetParameter(const char* parameter) {
+        model.LoadParameters(parameter);
     }
 
     template<class T, int max_size>
@@ -1361,7 +1370,7 @@ struct Evaluator {
         static auto condition_features = Stack<int, 100>();
         feature::ExtractFeatures(geese, foods, current_step, agent_features, condition_features);
         auto preds = model.Predict(agent_features, condition_features, rank);
-        memcpy(&res, &preds, sizeof(res));  // 危険
+        std::memcpy(&res, &preds, sizeof(res));  // 危険
         return res;
     }
 };
@@ -1371,39 +1380,46 @@ auto ev = evaluation_function::Evaluator();
 void TestModel() {
     using namespace std;
     static auto agent_features = array<Stack<int, 100>, 4>();
-    //for (const auto& v : {}) {
-    //    agent_features[0].push(v);
-    //}
-    for (const auto& v : { 1,  206,  257,  495,  522,  593,  620,  642,  672,  721,  823,
-           851,  780,  885,  964,  911, 1221, 1260, 1321, 1359, 1370, 1389,
-          1420, 1467, 1530, 1612, 1697, 1714, 1720, 1724, 1728, 1732, 1736,
-          1740, 1744, 1749, 1757, 1770, 1797, 1837, 1889, 1955, 2026 }) {
+    for (const auto& v : { 50,  128,  272,  384,  518,  599,  620,  642,  665,  735,  792,
+           883,  810,  835,  753,  855,  961,  925, 1080, 1268, 1327, 1359,
+          1371, 1395, 1435, 1491, 1560, 1635, 1713, 1714, 1720, 1724, 1729,
+          1733, 1737, 1741, 1745, 1749, 1758, 1772, 1792, 1832, 1886, 1952,
+          2026 }) {
+        agent_features[0].push(v);
+    }
+    for (const auto& v : { 16,  135,  306,  384,  515,  596,  617,  639,  662,  748,  794,
+           883,  778,  867,  798,  887,  929,  970, 1195, 1266, 1326, 1359,
+          1371, 1396, 1436, 1490, 1558, 1634, 1713, 1714, 1719, 1724, 1729,
+          1733, 1737, 1741, 1745, 1749, 1759, 1776, 1797, 1832, 1886, 1952,
+          2026 }) {
         agent_features[1].push(v);
     }
-    for (const auto& v : { 14,  182,  328,  384,  521,  592,  619,  641,  672,  744,  763,
-           856,  783,  876,  967,  914, 1062, 1270, 1326, 1359, 1370, 1390,
-          1422, 1471, 1537, 1616, 1697, 1714, 1720, 1724, 1728, 1732, 1736,
-          1740, 1744, 1749, 1758, 1773, 1800, 1841, 1892, 1952, 2026 }) {
+    for (const auto& v : { 50,  182,  344,  421,  518,  599,  620,  642,  665,  715,  776,
+           898,  808,  853,  780,  891,  911,  952, 1080, 1266, 1329, 1358,
+          1368, 1390, 1430, 1489, 1560, 1635, 1713, 1714, 1718, 1724, 1729,
+          1733, 1737, 1741, 1745, 1748, 1758, 1775, 1796, 1832, 1886, 1952,
+          2026 }) {
         agent_features[2].push(v);
     }
-    for (const auto& v : { 18,  142,  286,  421,  528,  599,  626,  648,  672,  749,  806,
-           894,  803,  880,  944,  957, 1041, 1265, 1326, 1359, 1370, 1390,
-          1421, 1467, 1529, 1607, 1694, 1714, 1720, 1724, 1728, 1732, 1736,
-          1740, 1744, 1749, 1758, 1774, 1802, 1843, 1895, 1955, 2027 }) {
+    for (const auto& v : { 96,  165,  256,  438,  517,  598,  619,  641,  664,  674,  756,
+           831,  788,  863,  806,  881,  957,  932, 1040, 1263, 1325, 1359,
+          1371, 1395, 1435, 1489, 1558, 1635, 1713, 1714, 1719, 1724, 1729,
+          1733, 1737, 1741, 1745, 1749, 1760, 1777, 1801, 1834, 1886, 1952,
+          2026 }) {
         agent_features[3].push(v);
     }
     static auto condition_features = Stack<int, 100>();
-    for (const auto& v : { 2105, 2143, 2326 }) {
+    for (const auto& v : { 2106, 2129, 2216 }) {
         condition_features.push(v);
     }
     static auto output = Matrix<float, 4, 5>();
     ev.model.Forward(agent_features, condition_features, output);
     output.Print();
-    //[[-6.6582, -1.0356, 1.6150, 1.3096, -0.9275],
-    // [1.0076, 3.0522, -3.0044, 0.5762, 3.5781],
-    // [1.3596, 5.8982, 0.5803, -3.1780, 1.3020],
-    // [1.9412, 3.8394, -2.6689, -0.4258, 4.0181]]
-    // https://www.kaggle.com/nagiss/geese-008-train-test?scriptVersionId=68458020
+    //   [[-1.0769, -4.7849, 2.8149, 2.4629, 2.8657],
+    //    [-0.9551, 1.5955, 3.3503, 2.2065, -5.7493],
+    //    [-1.6143, -2.6665, 1.8638, -1.9038, 5.5208],
+    //    [-2.0554, -3.9126, 4.1030, -1.5288, 3.3762]]
+    // https://www.kaggle.com/nagiss/geese-010-adjust-scale
 }
 void TestEvaluator() {
     using namespace std;
