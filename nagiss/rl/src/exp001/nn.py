@@ -2,13 +2,15 @@ from time import sleep
 from copy import deepcopy
 from pathlib import Path
 
-from tqdm import tqdm
-# from tqdm.notebook import tqdm
+#from tqdm import tqdm
+from tqdm.notebook import tqdm
 import torch
 from torch import nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 from kif import Kif
+
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, kif_files):
@@ -70,6 +72,8 @@ class FastDataset(torch.utils.data.Dataset):
         data = []  # type: 
         for file in tqdm(kif_files):
             kif = Kif.from_file(file)
+            if kif is None:
+                continue
             for step in kif.steps[:-1]:  # 最後のステップは着手が無いので除外
                 agent_features = torch.nn.utils.rnn.pad_sequence(
                     [torch.tensor(feats) for feats in step.agent_features],
@@ -97,6 +101,71 @@ class FastDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.data)
+
+
+class EfficientDataset(torch.utils.data.Dataset):
+    def __init__(self, kif_files):
+        """局面をテンソルにまとめて持っておくデータセット
+        
+        Args:
+            kif_files (list[str]): 棋譜ファイル名のリスト
+        """
+
+        self.kif_files = kif_files
+        self.max_data_size = 200 * 50000  # -> 1e7
+        self.max_feature_size = 50
+        
+        self.agent_feature_buffer     = torch.full((self.max_data_size, 4, self.max_feature_size), -100, dtype=torch.int16)
+        self.condition_feature_buffer = torch.full((self.max_data_size, 3), -100, dtype=torch.int16)
+        self.target_rank_buffer       = torch.full((self.max_data_size, 4), -100, dtype=torch.int8)
+        self.target_policy_buffer     = torch.full((self.max_data_size, 4, 4), -100, dtype=torch.float32)
+        
+        self.data_size = 0
+        self.load_all_states(kif_files)
+    
+    
+    def load_all_states(self, kif_files):
+        idx = 0
+        for file in tqdm(kif_files):
+            kif = Kif.from_file(file)
+            if kif is None:
+                continue
+            for step in kif.steps[:-1]:  # 最後のステップは着手が無いので除外
+                agent_features = torch.nn.utils.rnn.pad_sequence(
+                    [torch.tensor(feats) for feats in step.agent_features],
+                    batch_first=True, padding_value=-100
+                ).to(torch.int16)  # padding_value を設定すると float になるので戻す必要がある
+                condition_features = torch.tensor(step.condition_features)
+                target_rank = torch.tensor(kif.ranks)
+                target_policy = torch.tensor(step.values, dtype=torch.float)[:, 1:]
+                assert target_policy.shape == (4, 4)
+                
+                self.agent_feature_buffer[idx, :, :agent_features.shape[1]] = agent_features
+                self.condition_feature_buffer[idx] = condition_features
+                self.target_rank_buffer[idx] = target_rank
+                self.target_policy_buffer[idx] = target_policy
+                
+                idx += 1
+        
+        self.data_size = idx
+
+    def __getitem__(self, idx):
+        """
+        これは嘘
+        
+        Args:
+            idx (int):
+        Returns:
+            torch.Tensor: agent_features     エージェント特徴 (4, length) dtype=long
+            torch.Tensor: condition_features 状態特徴        (length,)   dtype=long
+            torch.Tensor: target_rank        最終順位        (4,)        dtype=long
+            torch.Tensor: target_policy      探索で得た方策   (4, 4)      dtype=float
+        """
+
+        return idx, self
+
+    def __len__(self):
+        return self.data_size
 
 
 class Model(nn.Module):
@@ -161,41 +230,41 @@ class Model(nn.Module):
         x = torch.where(x != -100, x, self.features)
 
         # (1) [batch, 4, length] -> [batch, 4, 256]
-        x = self.embed(x.view(batch_size * 4, -1)).view(batch_size, 4, self.hidden_1)  # scale = 2^12, max = 2^15
-        x = add(x, 0.5, 12)                                    # μ=0.5, σ=1.0, min=-7.5, max=8.5 | μ=2^11, σ=2^12, min=-...
-        x = clipped_relu(x, 127 << 5, 12)                      # μ=0.5, σ=1.0, min=0, max=127/128 | μ=2^11, σ=2^12, min=0, max=127<<5      # scale = 2^12, max = (2^7-1)2^5
+        x = self.embed(x.view(batch_size * 4, -1)).view(batch_size, 4, self.hidden_1)  # scale = 2^11, max = 2^15
+        x = add(x, 0.5, 11)                                    # μ=0.5, σ=1.0, min=-15.5, max=16.5 | μ=2^10, σ=2^11, min=-...
+        x = clipped_relu(x, 127 << 4, 11)                      # μ=0.5, σ=1.0, min=0, max=127/128 | μ=2^10, σ=2^11, min=0, max=127<<4      # scale = 2^11, max = (2^7-1)2^4
         
         if debug:
-            print(f"1) {x[0, :3, :5] / ((1<<12) if self.quantized else 1)}")
+            print(f"1) {x[0, :3, :5] / ((1<<11) if self.quantized else 1)}")
 
         # (2) [batch, length] -> [batch, 256]
-        condition = self.embed(condition)                      # μ=0, σ=1.0, min=-8, max=8 | μ=0, σ=2^12, min=-2^15, max=2-15
-        condition = add(condition, 0.5, 12)                    # μ=0.5, σ=1.0, min=-7.5, max=8.5 | μ=2^11, σ=2^12, min=...
-        condition = clipped_relu(condition, 127 << 5, 12)      # μ=0.5, σ=1.0, min=0, max=127/128 | μ=2^11, σ=2^12, min=0, max=127<<5        # scale = 2^12, max = 127<<5
-        condition = condition + x.sum(1)/4                     # μ=1.0, σ=2.0, min=0, max=2*127/128 | μ=2^12, σ=2^13, min=0, max=127<<6      # scale=2^12 max=127<<6
+        condition = self.embed(condition)                      # μ=0, σ=1.0, min=-16, max=16 | μ=0, σ=2^11, min=-2^15, max=2-15
+        condition = add(condition, 0.5, 11)                    # μ=0.5, σ=1.0, min=-15.5, max=16.5 | μ=2^10, σ=2^11, min=...
+        condition = clipped_relu(condition, 127 << 4, 11)      # μ=0.5, σ=1.0, min=0, max=127/128 | μ=2^10, σ=2^11, min=0, max=127<<5        # scale = 2^11, max = 127<<4
+        condition = condition + x.sum(1)/4                     # μ=1.0, σ=2.0, min=0, max=2*127/128 | μ=2^11, σ=2^12, min=0, max=127<<5      # scale = 2^11 max = 127<<5
         if not self.quantized:
             condition *= 0.5                                   # μ=0.5, σ=1.0, min=0, max=127/128 | ...
-        condition = scale(condition, -6)                       # μ=0.5, σ=1.0, min=0, max=127/128 | μ=2^6, σ=2^7, min=0, max=127            # scale = 2^7,  max = 2^7-1
+        condition = scale(condition, -5)                       # μ=0.5, σ=1.0, min=0, max=127/128 | μ=2^6, σ=2^7, min=0, max=127            # scale = 2^7,  max = 2^7-1
 
         if debug:
             print(f"2) {condition[0, :20] / ((1<<7) if self.quantized else 1)}")
         
         # (3) [batch, 256] -> [batch, 32]
-        condition = self.linear_condition(condition)           # scale = 2^15
-        condition = clipped_relu(condition, 127 << 8, 15)      # scale = 2^15, max = (2^7-1)2^8
-        #condition = scale(condition, 1)                        # scale = 2^15, max = (2^7-1)2^8
+        condition = self.linear_condition(condition)           # scale = 2^16
+        condition = clipped_relu(condition, 127 << 9, 16)      # scale = 2^16, max = (2^7-1)2^9
+        #condition = scale(condition, 1)                        # scale = 2^16, max = (2^7-1)2^9
         
         if debug:
-            print(f"3) {condition[0, :3] / ((1<<15) if self.quantized else 1)}")
+            print(f"3) {condition[0, :3] / ((1<<16) if self.quantized else 1)}")
         
         # (4) [batch, 4, 256] -> [batch, 4, 32]
-        x = scale(x, -5)                                       # scale = 2^7,  max = 2^7-1
-        x = self.linear_2(x)                                   # scale = 2^15
-        x = clipped_relu(x, 127 << 8, 15)                      # scale = 2^15, max = (2^7-1)2^8
-        x = x + condition.unsqueeze(1)                         # scale = 2^15, max = (2^7-1)2^9
+        x = scale(x, -4)                                       # scale = 2^7,  max = 2^7-1
+        x = self.linear_2(x)                                   # scale = 2^16
+        x = clipped_relu(x, 127 << 9, 16)                      # scale = 2^16, max = (2^7-1)2^9
+        x = x + condition.unsqueeze(1)                         # scale = 2^16, max = (2^7-1)2^10
         if not self.quantized:
             condition *= 0.5
-        x = scale(x, -9)                                       # scale = 2^6,  max = 2^7-1
+        x = scale(x, -10)                                       # scale = 2^6,  max = 2^7-1
 
         if debug:
             print(f"4) {x[0, :3] / ((1<<6) if self.quantized else 1)}")
@@ -229,11 +298,11 @@ class Model(nn.Module):
                 params.data = torch.round(params.data)
             params.data = torch.where(params.data > ma, ma, params.data)
             params.data = torch.where(params.data < mi, mi, params.data)
-        scale(qmodel.embed.weight, 12, bits=16)
-        scale(qmodel.linear_condition.weight, 8)
-        scale(qmodel.linear_condition.bias, 15, bits=32)
-        scale(qmodel.linear_2.weight, 8)
-        scale(qmodel.linear_2.bias, 15, bits=32)
+        scale(qmodel.embed.weight, 11, bits=16)
+        scale(qmodel.linear_condition.weight, 9)
+        scale(qmodel.linear_condition.bias, 16, bits=32)
+        scale(qmodel.linear_2.weight, 9)
+        scale(qmodel.linear_2.bias, 16, bits=32)
         scale(qmodel.linear_3.weight, 8)
         scale(qmodel.linear_3.bias, 14, bits=32)
         scale(qmodel.linear_4.weight, 6)
@@ -241,6 +310,32 @@ class Model(nn.Module):
 
         return qmodel
     
+    def clip_params(self, soft=False):
+        def clip(params, p, bits=8):
+#             device = params.data.device
+#             mi = torch.tensor(-(1<<bits-1), dtype=torch.float).to(device) / (1 << p)
+#             ma = torch.tensor((1<<bits-1)-1, dtype=torch.float).to(device) / (1 << p)
+#             params.data = torch.where(params.data > ma, ma, params.data)
+#             params.data = torch.where(params.data < mi, mi, params.data)
+            mi = -(1<<bits-1) / (1 << p)
+            ma = ((1<<bits-1)-1) / (1 << p)
+            if soft:
+                params.data = torch.tanh(params.data / ma) * ma
+            else:
+                params.data = F.hardtanh_(params.data, mi, ma)
+        if soft:
+            clip(self.embed.weight, 11, bits=11)
+        else:
+            clip(self.embed.weight, 11, bits=12)
+        clip(self.linear_condition.weight, 9)
+        clip(self.linear_condition.bias, 16, bits=32)
+        clip(self.linear_2.weight, 9)
+        clip(self.linear_2.bias, 16, bits=32)
+        clip(self.linear_3.weight, 8)
+        clip(self.linear_3.bias, 14, bits=32)
+        clip(self.linear_4.weight, 6)
+        clip(self.linear_4.bias, 13, bits=32)
+        
     def dump(self, filename):
         assert self.quantized
         with open(filename, "wb") as f:
@@ -309,16 +404,20 @@ class Loss(nn.Module):
         return loss
 
 
-def collate_fn(batch):
-    agent_features, condition_features, target_rank, target_policy = zip(*batch)
-    pad_sequence = torch.nn.utils.rnn.pad_sequence
-    agent_features = pad_sequence([f.permute(1, 0) for f in agent_features], batch_first=True,
-                                  padding_value=-100).permute(0, 2, 1).contiguous()
-    condition_features = pad_sequence(condition_features, batch_first=True, padding_value=-100).contiguous()
-    target_rank = torch.stack(target_rank)
-    target_policy = torch.stack(target_policy)
-    return agent_features, condition_features, target_rank, target_policy
+# def collate_fn(batch):
+#     agent_features, condition_features, target_rank, target_policy = zip(*batch)
+#     pad_sequence = torch.nn.utils.rnn.pad_sequence
+#     agent_features = pad_sequence([f.permute(1, 0) for f in agent_features], batch_first=True,
+#                                   padding_value=-100).permute(0, 2, 1).contiguous()
+#     condition_features = pad_sequence(condition_features, batch_first=True, padding_value=-100).contiguous()
+#     target_rank = torch.stack(target_rank)
+#     target_policy = torch.stack(target_policy)
+#     return agent_features, condition_features, target_rank, target_policy
 
+def collate_fn(batch):
+    idxs, (dataset, *_) = zip(*batch)
+    idxs = list(idxs)
+    return dataset.agent_feature_buffer[idxs].to(torch.long), dataset.condition_feature_buffer[idxs].to(torch.long), dataset.target_rank_buffer[idxs], dataset.target_policy_buffer[idxs]
 
 def tee(text, f=None):
     print(text)
@@ -327,6 +426,20 @@ def tee(text, f=None):
         f.write("\n")
         f.flush()
 
+def plot_weight(model):
+    qmodel = model.quantize()
+    plt.hist(qmodel.embed.weight.detach().numpy().ravel(), bins=256, range=(-1024.5, 1023.5))
+    plt.show()
+    plt.hist(qmodel.linear_condition.weight.detach().numpy().ravel(), bins=256, range=(-128.5, 127.5))
+    plt.show()
+    plt.hist(qmodel.linear_2.weight.detach().numpy().ravel(), bins=256, range=(-128.5, 127.5))
+    plt.show()
+    plt.hist(qmodel.linear_3.weight.detach().numpy().ravel(), bins=256, range=(-128.5, 127.5))
+    plt.show()
+    plt.hist(qmodel.linear_4.weight.detach().numpy().ravel(), bins=256, range=(-128.5, 127.5))
+    plt.show()
+    for name, params in qmodel.named_parameters():
+        print(name, params.data.min().numpy(), params.data.max().numpy())
 
 if __name__ == "__main__":
     # 学習
@@ -336,7 +449,7 @@ if __name__ == "__main__":
     batch_size = 4096
     device = "cpu"   # 2.2 it/sec (batch_size = 4096)
     #device = "cuda"  # 10 it/sec (batch_size = 4096)
-    n_epochs = 10
+    n_epochs = 100
     sgd_learning_rate = 1e-1
     adam_learning_rate = 1e-3
     N_FEATURES = 2382
@@ -354,7 +467,7 @@ if __name__ == "__main__":
     sleep(0.5)
     if "dataset" not in vars():
         #dataset = Dataset(kif_files)
-        dataset = FastDataset(kif_files)
+        dataset = EfficientDataset(kif_files)
     print(f"len(dataset)={len(dataset)}")
     dataloader = torch.utils.data.DataLoader(
         dataset, batch_size, shuffle=True, num_workers=0,
@@ -373,11 +486,28 @@ if __name__ == "__main__":
     epoch_losses = []
     f_log = open(out_dir / "log.txt", "a")
 
+    start_epoch = 0
+    
+    # チェックポイントの読み込み
+    if "old_checkpoint_file" in vars() and Path(old_checkpoint_file).is_file():
+        dict_checkpoint = torch.load(old_checkpoint_file)
+        print("checkpoint file found!")
+        start_epoch = dict_checkpoint["epoch"] + 1
+        model.load_state_dict(dict_checkpoint["state_dict"])
+        #optimizer.load_state_dict(dict_checkpoint["optimizer"])
+
+    model.clip_params(soft=True)
+    
     # 学習ループ
-    for epoch in range(n_epochs):
+    for epoch in range(start_epoch, n_epochs):
+        if epoch % 5 == 0:
+            plot_weight(model)
+        
+        
         model.train()
         tee(f"epoch {epoch}", f_log)
         sleep(0.5)
+        
         epoch_loss = 0.0
         n_predicted_data = 0
         iteration = 0
@@ -392,6 +522,8 @@ if __name__ == "__main__":
             loss = criterion(preds, target_rank, target_policy)
             loss.backward()
             optimizer.step()
+            if iteration % 5 == 0:
+                model.clip_params()
 
             epoch_loss += loss.item() * len(agent_features)
             n_predicted_data += len(agent_features)
@@ -401,15 +533,13 @@ if __name__ == "__main__":
         tee(f"epoch_loss = {epoch_loss}", f_log)
         epoch_losses.append(epoch_loss)
 
-        if out_dir is not None and (epoch % 10 == 0 or epoch == n_epochs - 1):
+        if out_dir is not None and (epoch % 5 == 0 or epoch == n_epochs - 1):
             torch.save({
                 "epoch": epoch,
                 "epoch_loss": epoch_loss,
+                "epoch_losses": epoch_losses,
                 "state_dict": model.state_dict(),
                 "optimizer": optimizer.state_dict()
             }, checkpoint_dir / f"{epoch:03d}.pt")
 
     f_log.close()
-
-# TODO: 途中の重みのクリップ
-# TODO: 環境チェック
