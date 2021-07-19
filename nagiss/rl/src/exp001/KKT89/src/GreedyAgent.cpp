@@ -78,7 +78,7 @@ struct Tensor3 {
         static_assert(dim1 * dim2 * dim3 == new_dim_1 * new_dim_2, "View の次元がおかしいよ");
         union U {
             Tensor3 data;
-            Matrix<new_dim_1, new_dim_2> view;
+            Matrix<T, new_dim_1, new_dim_2> view;
         };
         return ((U*)this)->view;
     }
@@ -702,7 +702,7 @@ struct BitBoard {
         using nagiss_library::popcount;
         return popcount(lo) + popcount(hi);
     }
-    template<unsigned size>
+    template<size_t size>
     inline int Neighbor(const int& idx, const array<nagiss_library::Vec2<int>, size>& dyxs) const {
         int res = 0;
         auto yx0 = nagiss_library::Vec2<int>{ idx / 11, idx % 11 };
@@ -1325,7 +1325,7 @@ struct Evaluator {
     Model<feature::NN_INPUT_DIM, 5, 256, 32> model;  // Python 側の都合でひとつ多く持つ
     inline Evaluator() {
         // モデルのパラメータ設定
-        model.LoadParameters("../src/param_010_01.bin");
+        model.LoadParameters("./src/param_010_01.bin");
         // TODO
     }
 
@@ -1363,7 +1363,7 @@ struct Evaluator {
         static auto condition_features = Stack<int, 100>();
         feature::ExtractFeatures(geese, foods, current_step, agent_features, condition_features);
         auto preds = model.Predict(agent_features, condition_features, rank);
-        memcpy(&res, &preds, sizeof(res));  // 危険
+        std::memcpy(&res, &preds, sizeof(res));  // 危険
         return res;
     }
 };
