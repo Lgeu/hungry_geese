@@ -491,7 +491,7 @@ AgentResult Duct::Search(const float timelimit) {
         }
     }
     result.mAction = opt_action;
-    std::cerr << (int)node_buffer[0].state.current_step << " " << t_sum << " " << node_buffer.size() << " " << children_buffer.size() << std::endl;
+    // std::cerr << (int)node_buffer[0].state.current_step << " " << t_sum << " " << node_buffer.size() << " " << children_buffer.size() << std::endl;
     return result;
 }
 
