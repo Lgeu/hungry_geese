@@ -7,7 +7,6 @@
 #include "Assert.hpp"
 #include "AgentResult.hpp"
 #include "library.hpp"
-#include "Evaluation_function.hpp"
 #include "Evaluator.hpp"
 
 namespace hungry_geese {
@@ -101,7 +100,6 @@ struct Duct {
 
     Stack<Node, node_buffer_size> node_buffer;
     Stack<Node*, children_buffer_size> children_buffer;
-    Evaluator model;
     evaluation_function::Evaluator nnue;
     int t_sum; // 累計試行回数
 

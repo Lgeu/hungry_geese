@@ -43,8 +43,6 @@ struct Simulator {
 
     // ゲーム全体
     Game mGame;
-    // Agent
-    Agent mAgent;
     // タイマー
     Timer mTimer;
     // 探索にかける時間

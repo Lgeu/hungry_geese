@@ -1,7 +1,6 @@
 ﻿#define _CRT_SECURE_NO_WARNINGS
 
 #include "src/Duct.cpp"
-#include "src/MctsAgent.cpp"
 #include "src/Random.cpp"
 #include "src/Point.cpp"
 #include "src/Food.cpp"
@@ -9,8 +8,6 @@
 #include "src/Game.cpp"
 #include "src/Goose.cpp"
 #include "src/Stage.cpp"
-#include "src/Agent.cpp"
 #include "src/AgentResult.cpp"
-#include "src/GreedyAgent.cpp"
 #include "src/Simulator.cpp"
 #include "src/Main.cpp"

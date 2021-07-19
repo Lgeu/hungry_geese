@@ -4,7 +4,7 @@
 
 namespace hungry_geese {
     
-Simulator::Simulator() : mGame(), mAgent(), mTimer() {
+Simulator::Simulator() : mGame(), mTimer() {
     rand = Random(0);
 }
 

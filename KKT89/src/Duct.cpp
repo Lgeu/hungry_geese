@@ -5,7 +5,7 @@ namespace hungry_geese {
 
 //------------------------------------------------------------------------------
 // コンストラクタ
-Duct::Duct() : node_buffer(), children_buffer(), model() {}
+Duct::Duct() : node_buffer(), children_buffer(), nnue() {}
 
 //------------------------------------------------------------------------------
 // Ductのログをデバック出力
@@ -451,7 +451,7 @@ AgentResult Duct::Search(const float timelimit) {
         std::array<nagiss_library::Stack<int, 77>, 4> geese;
         std::array<int, 2> foods;
         std::array<int, 4> rank;
-        auto Convert_CpointArray_to_IntArray=[](const State &state, std::array<nagiss_library::Stack<int, 77>, 4> &geese, std::array<int, 2>& foods, std::array<int, 4> rank)->void{
+        auto Convert_CpointArray_to_IntArray=[](const State &state, std::array<nagiss_library::Stack<int, 77>, 4> &geese, std::array<int, 2>& foods, std::array<int, 4> &rank)->void{
             for (int i = 0; i < 4; ++i) {
                 for (int j = state.boundary[i]; j < state.boundary[i + 1]; ++j) {
                     geese[i].push(state.geese[j].Id());
@@ -552,7 +552,7 @@ void Duct::Iterate() {
         std::array<nagiss_library::Stack<int, 77>, 4> geese;
         std::array<int, 2> foods;
         std::array<int, 4> rank;
-        auto Convert_CpointArray_to_IntArray=[](const State &state, std::array<nagiss_library::Stack<int, 77>, 4> &geese, std::array<int, 2>& foods, std::array<int, 4> rank)->void{
+        auto Convert_CpointArray_to_IntArray=[](const State &state, std::array<nagiss_library::Stack<int, 77>, 4> &geese, std::array<int, 2>& foods, std::array<int, 4> &rank)->void{
             for (int i = 0; i < 4; ++i) {
                 for (int j = state.boundary[i]; j < state.boundary[i + 1]; ++j) {
                     geese[i].push(state.geese[j].Id());
