@@ -1327,11 +1327,7 @@ void ExtractFeatures(
 
 struct Evaluator {
     Model<feature::NN_INPUT_DIM, 5, 256, 32> model;  // Python 側の都合でひとつ多く持つ
-    inline Evaluator() {
-        // モデルのパラメータ設定
-        model.LoadParameters("./src/param_010_01.bin");
-        // TODO
-    }
+    inline Evaluator() {}
     void SetParameter(const char* parameter) {
         model.LoadParameters(parameter);
     }
