@@ -44,13 +44,13 @@ void Stage::InitializeBoard() {
         auto items = goose.items();
         for (int i = 0; i < items.right; ++i) {
             auto pos = items[i];
-            mBoard[pos.id] = 1;
+            mBoard[pos.Id()] = 1;
         }
     }
     // Food
     for (Food food: foods()) {
         auto pos = food.pos();
-        mBoard[pos.id] = 1;
+        mBoard[pos.Id()] = 1;
     }
 
     return;

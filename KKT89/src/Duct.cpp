@@ -14,39 +14,6 @@ void Duct::Setprintlog(bool f) {
 }
 
 //------------------------------------------------------------------------------
-// Point
-Duct::Cpoint::Cpoint() : mC() {}
-
-Duct::Cpoint::Cpoint(int aX, int aY) {
-    mC = aX * hungry_geese::Parameter::columns + aY;
-}
-
-Duct::Cpoint::Cpoint(int aId) {
-    mC = aId;
-}
-
-int Duct::Cpoint::X() const {
-    return (int)mC / Parameter::columns;
-}
-
-int Duct::Cpoint::Y() const {
-    return (int)mC % Parameter::columns;
-}
-
-int Duct::Cpoint::Id() const {
-    return (int)mC;
-}
-
-Duct::Cpoint& Duct::Cpoint::operator= (const Cpoint &aPos) {
-    mC = aPos.Id();
-    return *this;
-}
-
-bool Duct::Cpoint::operator== (const Cpoint &aPos) const {
-    return (mC == aPos.Id());
-}
-
-//------------------------------------------------------------------------------
 // State
 Duct::State::State() : geese(), boundary(), foods(), current_step(), last_actions(), ranking() {}
 
@@ -61,14 +28,14 @@ Duct::State::State(hungry_geese::Stage aStage, int aIndex) : geese(), boundary()
         }
         auto goose = aStage.geese()[i].items();
         for (int j = 0; j < goose.size(); ++j) {
-            geese[index] = Duct::Cpoint(goose[j].id);
+            geese[index] = goose[j];
             index++;
         }
     }
     boundary[4] = index;
     // 食べ物
     for (int i = 0; i < 2; ++i) {
-         foods[i] = Duct::Cpoint(aStage.foods()[i].pos().id);
+         foods[i] = aStage.foods()[i].pos();
     }
     // ターン数
     current_step = aStage.mTurn;
@@ -107,9 +74,9 @@ Duct::State Duct::State::NextState(NodeType node_type, const unsigned char agent
     else {
         for (int i = 0; i < 2; ++i) {
             if (foods[i].Id() == -1) {
-                nextstate.foods[i] = Duct::Cpoint(agent_action);
+                nextstate.foods[i] = Cpoint(agent_action);
                 if ((i == 0) and (foods[i+1].Id() == -1)) {
-                    nextstate.foods[i+1] = Duct::Cpoint(food_sub);
+                    nextstate.foods[i+1] = Cpoint(food_sub);
                     break;
                 }
             }
@@ -136,7 +103,7 @@ void Duct::State::Simulate(State &state, unsigned char agent_action) {
         for (int j = 0; j < 2; ++j) {
             if (head == state.foods[j]) {
                 eatFood = true;
-                state.foods[j] = Duct::Cpoint(-1);
+                state.foods[j] = Cpoint(-1);
             }
         }
         for (int j = state.boundary[i]; j < state.boundary[i + 1]; ++j, ++index) {
@@ -600,7 +567,7 @@ void Duct::Iterate() {
 
 //------------------------------------------------------------------------------
 // 方向を指定して移動先を返す関数
-Duct::Cpoint Duct::Translate(Cpoint aPos, int Direction) {
+Cpoint Duct::Translate(Cpoint aPos, int Direction) {
     int nx = aPos.X();
     int ny = aPos.Y();
     nx += dx[Direction];

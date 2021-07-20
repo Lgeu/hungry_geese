@@ -1,20 +1,21 @@
 ﻿#pragma once
 
 namespace hungry_geese {
-    
-struct Point {
+
+struct Cpoint {
     // コンストラクタ
-    Point();
-    Point(int aX, int aY);
-    Point(int aId);
-
+    Cpoint();
+    Cpoint(int aX, int aY);
+    Cpoint(int aId);
     // メンバ変数
-    int x;
-    int y;
-    int id;
-
+    signed char mC;
+    // 呼び出し
+    int X() const;
+    int Y() const;
+    int Id() const;
     // 演算子オーバーロード
-    bool operator== (const Point &aPos) const;
+    Cpoint& operator= (const Cpoint &aPos);
+    bool operator== (const Cpoint &aPos) const;
 };
 
 }

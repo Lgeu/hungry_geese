@@ -2,6 +2,7 @@
 #include <math.h>
 #include <random>
 #include <chrono>
+#include "Point.hpp"
 #include "Stage.hpp"
 #include "Stack.hpp"
 #include "Assert.hpp"
@@ -19,23 +20,6 @@ struct Duct {
     constexpr static int children_buffer_size = 10000000;
     void Setprintlog(bool f);
     bool printlog = false;
-
-    // Point
-    struct Cpoint {
-        // コンストラクタ
-    	Cpoint();
-        Cpoint(int aX, int aY);
-        Cpoint(int aId);
-        // メンバ変数
-    	signed char mC;
-        // 呼び出し
-        int X() const;
-        int Y() const;
-        int Id() const;
-        // 演算子オーバーロード
-        Duct::Cpoint& operator= (const Cpoint &aPos);
-        bool operator== (const Cpoint &aPos) const;
-    };
 
     // NodeType
     enum struct NodeType : bool {

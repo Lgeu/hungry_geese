@@ -6,11 +6,11 @@ namespace hungry_geese {
 struct Food {
     // コンストラクタ
     Food();
-    Food(Point aPos);
+    Food(Cpoint aPos);
 
     // 問い合わせ
     // 食べ物の位置
-    const Point& pos() const;
+    const Cpoint& pos() const;
     // 既に食べられたか
     bool isEaten() const;
     // 食べられたかどうかを設定する
@@ -18,7 +18,7 @@ struct Food {
 
     // メンバ変数
     // 位置
-    Point mPosition;
+    Cpoint mPosition;
     // 食べられたかどうか
     bool mIsEaten;
 };

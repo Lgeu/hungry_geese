@@ -45,14 +45,14 @@ void Simulator::run() {
     for (int i = 0; i < 4; ++i) {
         int id = rand.randTerm(77);
         id = stage0.randPos(id);
-        stage0.mGeese[i] = Goose(Point(id));
+        stage0.mGeese[i] = Goose(Cpoint(id));
         stage0.mBoard[id] = 1;
     }
     // 食べ物
     for (int i = 0; i < 2; ++i) {
         int id = rand.randTerm(77);
         id = stage0.randPos(id);
-        stage0.mFoods[i] = Food(Point(id));
+        stage0.mFoods[i] = Food(Cpoint(id));
         stage0.mBoard[id] = 1;
     }
     // 残り時間
@@ -76,38 +76,6 @@ void Simulator::run() {
                 stage.mGeese[j].setIsSurvive(false);
             }
             break;
-        }
-
-        // デバック
-        if (false) {
-            std::cerr << i << std::endl;
-            std::array<char, 77> debug;
-            for (int j = 0; j < 77; ++j) {
-                debug[j] = '*';
-            }
-            // Goose
-            for (Goose goose: stage.geese()) {
-                auto items = goose.items();
-                for (int i = 0; i < items.right; ++i) {
-                    auto pos = items[i];
-                    debug[pos.id] = 'S';
-                    if (i == 0) {
-                        debug[pos.id] = 'A';
-                    }
-                    else if (i + 1 == items.right) {
-                        debug[pos.id] = 'B';
-                    }
-                }
-            }
-            // 食べ物
-            debug[stage.mFoods[0].pos().id] = 'F';
-            debug[stage.mFoods[1].pos().id] = 'F';
-            for (int r = 0; r < Parameter::rows; ++r) {
-                for (int c = 0; c < Parameter::columns; ++c) {
-                    std::cerr << debug[r*Parameter::columns + c];
-                }
-                std::cerr << std::endl;
-            }
         }
 
         // 探索
@@ -162,7 +130,7 @@ void Simulator::run() {
             // 前ターンの反対の動きをしていないか判定
             auto items = goose.items();
             auto head = items[0];
-            int x = head.x, y = head.y;
+            int x = head.X(), y = head.Y();
             if (act[j] == Action::NORTH) {
                 nextstage.mLastActions[j] = Action::NORTH;
                 if (stage.mLastActions[j] == Action::SOUTH) {
@@ -209,7 +177,7 @@ void Simulator::run() {
             }
 
             // 次のターンの頭の位置
-            Point nextHead = Point(x,y);
+            Cpoint nextHead = Cpoint(x,y);
 
             // 食べ物を食べたかどうか
             bool eatFood = false;
@@ -266,14 +234,14 @@ void Simulator::run() {
             auto items = goose.items();
             for (int j = 0; j < items.right; ++j) {
                 auto pos = items[j];
-                goose_positions[pos.id]++;
+                goose_positions[pos.Id()]++;
             }
         }
         for (int j = 0; j < 4; ++j) {
             Goose goose = nextstage.mGeese[j];
             if (!goose.isSurvive()) continue;
             auto head = goose.items()[0];
-            if (goose_positions[head.id] > 1) {
+            if (goose_positions[head.Id()] > 1) {
                 nextstage.mGeese[j].setIsSurvive(false);
                 continue;
             }
@@ -286,19 +254,19 @@ void Simulator::run() {
             auto items = goose.items();
             for (int j = 0; j < items.right; ++j) {
                 auto pos = items[j];
-                nextstage.mBoard[pos.id] = 1;
+                nextstage.mBoard[pos.Id()] = 1;
             }
         }
         if (!stage.mFoods[0].isEaten()) {
             nextstage.mFoods[0] = stage.mFoods[0];
-            nextstage.mBoard[nextstage.mFoods[0].pos().id] = 1;
+            nextstage.mBoard[nextstage.mFoods[0].pos().Id()] = 1;
         }
         else {
             ++needed_food;
         }
         if (!stage.mFoods[1].isEaten()) {
             nextstage.mFoods[1] = stage.mFoods[1];
-            nextstage.mBoard[nextstage.mFoods[1].pos().id] = 1;
+            nextstage.mBoard[nextstage.mFoods[1].pos().Id()] = 1;
         }
         else {
             ++needed_food;
@@ -316,8 +284,8 @@ void Simulator::run() {
         if (stage.mFoods[0].isEaten() and needed_food > 0) {
             int id = rand.randTerm(available_positions.size());
             id = available_positions[id];
-            nextstage.mFoods[0] = Food(Point(id));
-            nextstage.mBoard[nextstage.mFoods[0].pos().id] = 1;
+            nextstage.mFoods[0] = Food(Cpoint(id));
+            nextstage.mBoard[nextstage.mFoods[0].pos().Id()] = 1;
             --needed_food;
             used_food = id;
         }
@@ -328,8 +296,8 @@ void Simulator::run() {
                 id = rand.randTerm(available_positions.size());
                 id = available_positions[id];
             }
-            nextstage.mFoods[1] = Food(Point(id));
-            nextstage.mBoard[nextstage.mFoods[1].pos().id] = 1;
+            nextstage.mFoods[1] = Food(Cpoint(id));
+            nextstage.mBoard[nextstage.mFoods[1].pos().Id()] = 1;
             --needed_food;
         }
 
@@ -411,14 +379,14 @@ void Simulator::printKif() const {
             file_out << size;
             for (int i = 0; i < size; ++i) {
                 auto pos = items[i];
-                file_out << " " << pos.id;
+                file_out << " " << (int)pos.Id();
             }
             file_out << std::endl;
         }
 
         // 食べ物の位置
         auto foods = stage.foods();
-        file_out << foods[0].pos().id << " " << foods[1].pos().id << std::endl;
+        file_out << (int)foods[0].pos().Id() << " " << (int)foods[1].pos().Id() << std::endl;
 
         // エージェントの着手
         auto act = stage.actions();
@@ -466,10 +434,10 @@ void Simulator::printKif() const {
             for (int i = 0; i < 4; i++) {
                 if (!stage.geese()[i].isSurvive()) continue;
                 for (const auto& p : stage.geese()[i].items()) {
-                    geese[i].push(p.id);
+                    geese[i].push(p.Id());
                 }
             }
-            const auto foods = std::array<int, 2>{ stage.foods()[0].pos().id, stage.foods()[1].pos().id };
+            const auto foods = std::array<int, 2>{ stage.foods()[0].pos().Id(), stage.foods()[1].pos().Id() };
             const auto& current_step = stage.mTurn;
 
             // 出力

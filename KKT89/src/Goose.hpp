@@ -5,12 +5,12 @@
 
 namespace hungry_geese {
 
-using Items = Stack<Point, 77>;
+using Items = Stack<Cpoint, 77>;
 
 struct Goose {
     // コンストラクタ
     Goose();
-    Goose(Point aPos);
+    Goose(Cpoint aPos);
 
     // 問い合わせ
     // 占めているグリッド

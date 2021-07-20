@@ -7,11 +7,11 @@ Food::Food() : mPosition() {
     mIsEaten = false;
 }
 
-Food::Food(Point aPos) : mPosition(aPos) {
+Food::Food(Cpoint aPos) : mPosition(aPos) {
     mIsEaten = false;
 }
 
-const Point& Food::pos() const {
+const Cpoint& Food::pos() const {
     return mPosition;
 }
 

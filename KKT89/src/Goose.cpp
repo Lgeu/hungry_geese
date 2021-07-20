@@ -7,7 +7,7 @@ Goose::Goose() : mItems(), mIsSurvive(true) {
     mRemainingTime = Parameter::remainingOverageTime;
 }
 
-Goose::Goose(Point aPos) : mIsSurvive(true) {
+Goose::Goose(Cpoint aPos) : mIsSurvive(true) {
     mItems.push(aPos);
     mRemainingTime = Parameter::remainingOverageTime;
 }

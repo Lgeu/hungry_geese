@@ -4,19 +4,35 @@
 
 namespace hungry_geese {
 
-Point::Point() : x(), y(), id() {}
-    
-Point::Point(int aX, int aY) : x(aX), y(aY) {
-    id = Parameter::columns * aX + aY;
+Cpoint::Cpoint() : mC() {}
+
+Cpoint::Cpoint(int aX, int aY) {
+    mC = aX * hungry_geese::Parameter::columns + aY;
 }
 
-Point::Point(int aId): x(), y(), id(aId) {
-    x = aId / Parameter::columns;
-    y = aId % Parameter::columns;
+Cpoint::Cpoint(int aId) {
+    mC = aId;
 }
 
-bool Point::operator== (const Point &aPos) const {
-    return (id == aPos.id);
+int Cpoint::X() const {
+    return (int)mC / Parameter::columns;
+}
+
+int Cpoint::Y() const {
+    return (int)mC % Parameter::columns;
+}
+
+int Cpoint::Id() const {
+    return (int)mC;
+}
+
+Cpoint& Cpoint::operator= (const Cpoint &aPos) {
+    mC = aPos.Id();
+    return *this;
+}
+
+bool Cpoint::operator== (const Cpoint &aPos) const {
+    return (mC == aPos.Id());
 }
 
 }
