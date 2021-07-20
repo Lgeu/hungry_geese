@@ -204,7 +204,7 @@ void Duct::State::Simulate(State &state, const unsigned char& agent_actions) {
     }
 
     // foods の更新 (補充しない)
-    fill(state.foods.begin(), state.foods.end(), Cpoint(-1));
+    std::fill(state.foods.begin(), state.foods.end(), Cpoint(-1));
     for (int idx_foods = 0; idx_foods < foods.size(); idx_foods++) {
         state.foods[idx_foods] = foods[idx_foods];
     }
@@ -291,7 +291,7 @@ bool Duct::Node::Expanded() const {
 float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int& t_sum) {
     constexpr float c_puct = 1.0f;
     return (3.0f + GetWorth()[idx_agent][idx_move]) / (1.0f + (float)n[idx_agent][idx_move]) 
-        + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrtf(t_sum) / (float)(1 + n[idx_agent][idx_move]);
+        + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt((float)t_sum) / (float)(1 + n[idx_agent][idx_move]);
 }
 
 int Duct::Node::ChooseMove(const int& t_sum) {

@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include <math.h>
+#include <cmath>
 #include <random>
 #include <chrono>
 #include "Point.hpp"
