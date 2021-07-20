@@ -42,7 +42,7 @@ struct Duct {
         // food_sub : 食べ物が2個同時に消える場合256だと情報足りない
         State NextState(NodeType node_type, const unsigned char agent_action, const unsigned char food_sub) const;
         // シミュレート
-        static void Simulate(State &state, unsigned char agent_action);
+        static void Simulate(State &state, const unsigned char& agent_action);
         // 終局状態か(プレイヤー0が生存しているか)
         bool Finished() const;
         // デバック用
