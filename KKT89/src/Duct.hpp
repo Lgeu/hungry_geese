@@ -4,7 +4,6 @@
 #include <chrono>
 #include "Point.hpp"
 #include "Stage.hpp"
-#include "Stack.hpp"
 #include "Assert.hpp"
 #include "AgentResult.hpp"
 #include "library.hpp"
@@ -68,7 +67,7 @@ struct Duct {
 
         Node();
 
-        Node(const State& aState, Stack<Node*, children_buffer_size>& children_buffer);
+        Node(const State& aState, nagiss_library::Stack<Node*, children_buffer_size>& children_buffer);
 
         bool Expanded() const; // 既にモデルによって評価されているかを返す
         // アーク評価値
@@ -77,13 +76,13 @@ struct Duct {
         int ChooseMove(const int& t_sum);
         // k 番目の行動によって遷移する子ノードを返す 
         // その子ノードが初めて遷移するものだった場合、新たに領域を確保してノードを作る
-        Node& KthChildren(Stack<Node, node_buffer_size>& node_buffer, Stack<Node*, children_buffer_size>& children_buffer, const int& k);
+        Node& KthChildren(nagiss_library::Stack<Node, node_buffer_size>& node_buffer, nagiss_library::Stack<Node*, children_buffer_size>& children_buffer, const int& k);
         // デバック用
         void Debug() const;
     };
 
-    Stack<Node, node_buffer_size> node_buffer;
-    Stack<Node*, children_buffer_size> children_buffer;
+    nagiss_library::Stack<Node, node_buffer_size> node_buffer;
+    nagiss_library::Stack<Node*, children_buffer_size> children_buffer;
     evaluation_function::Evaluator nnue;
     int t_sum; // 累計試行回数
 

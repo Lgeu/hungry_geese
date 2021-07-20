@@ -201,7 +201,7 @@ const std::array<std::array<float, 4>, 4>& Duct::Node::GetWorth() const {
 
 Duct::Node::Node() : state(), policy(), value(), worth(), n(), n_children(), children_offset(), node_type() {}
 
-Duct::Node::Node(const State& aState, Stack<Node*, children_buffer_size>& children_buffer) : state(aState), policy(), value(), worth(), n(), children_offset(), node_type() {
+Duct::Node::Node(const State& aState, nagiss_library::Stack<Node*, children_buffer_size>& children_buffer) : state(aState), policy(), value(), worth(), n(), children_offset(), node_type() {
     policy[0][0] = -100.0;
 
     if (aState.foods[0].Id() == -1 or aState.foods[1].Id() == -1) {
@@ -280,7 +280,7 @@ int Duct::Node::ChooseMove(const int& t_sum) {
     return k;
 }
 
-Duct::Node& Duct::Node::KthChildren(Stack<Node, node_buffer_size>& node_buffer, Stack<Node*, children_buffer_size>& children_buffer, const int& k) {
+Duct::Node& Duct::Node::KthChildren(nagiss_library::Stack<Node, node_buffer_size>& node_buffer, nagiss_library::Stack<Node*, children_buffer_size>& children_buffer, const int& k) {
     ASSERT_RANGE(k, 0, n_children);
     Node* child = children_buffer[children_offset + k];
     if (child == nullptr) {
@@ -469,7 +469,7 @@ Duct::Node& Duct::RootNode() {
 void Duct::Iterate() {
     // 根から葉に移動
     Node* v = &RootNode();
-    Stack<int, 200> path;
+    nagiss_library::Stack<int, 200> path;
     // 展開されてない、エージェントのノードに到達したら抜ける
     while (v->Expanded() or v->node_type == NodeType::FOOD_NODE) {
         int move_idx = v->ChooseMove(t_sum);

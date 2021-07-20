@@ -271,7 +271,7 @@ void Simulator::run() {
         else {
             ++needed_food;
         }
-        Stack<int, 77> available_positions;
+        nagiss_library::Stack<int, 77> available_positions;
         for (int j = 0; j < 77; ++j) {
             if (nextstage.mBoard[j] == 0) {
                 available_positions.push(j);
@@ -430,7 +430,7 @@ void Simulator::printKif() const {
         for (int currentlySurvivingAgent = 0; currentlySurvivingAgent < 4; currentlySurvivingAgent++) {
             if (!stage.geese()[currentlySurvivingAgent].isSurvive()) continue;  // 4 エージェントとも同じ情報を持っている (はず) ので、生きてるやつを使う
             // 入力
-            auto geese = std::array<Stack<int, 77>, 4>();
+            auto geese = std::array<nagiss_library::Stack<int, 77>, 4>();
             for (int i = 0; i < 4; i++) {
                 if (!stage.geese()[i].isSurvive()) continue;
                 for (const auto& p : stage.geese()[i].items()) {
@@ -441,8 +441,8 @@ void Simulator::printKif() const {
             const auto& current_step = stage.mTurn;
 
             // 出力
-            static auto agent_features = std::array<Stack<int, 100>, 4>();
-            static auto condition_features = Stack<int, 100>();
+            static auto agent_features = std::array<nagiss_library::Stack<int, 100>, 4>();
+            static auto condition_features = nagiss_library::Stack<int, 100>();
 
             feature::ExtractFeatures(geese, foods, current_step, agent_features, condition_features);
             stage.mAgentResult[currentlySurvivingAgent].mAgentFeatures = agent_features;

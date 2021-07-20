@@ -1375,7 +1375,7 @@ namespace test {
 auto ev = evaluation_function::Evaluator();
 void TestModel() {
     using namespace std;
-    static auto agent_features = array<Stack<int, 100>, 4>();
+    static auto agent_features = array<nagiss_library::Stack<int, 100>, 4>();
     for (const auto& v : { 50,  128,  272,  384,  518,  599,  620,  642,  665,  735,  792,
            883,  810,  835,  753,  855,  961,  925, 1080, 1268, 1327, 1359,
           1371, 1395, 1435, 1491, 1560, 1635, 1713, 1714, 1720, 1724, 1729,
@@ -1404,7 +1404,7 @@ void TestModel() {
           2026 }) {
         agent_features[3].push(v);
     }
-    static auto condition_features = Stack<int, 100>();
+    static auto condition_features = nagiss_library::Stack<int, 100>();
     for (const auto& v : { 2106, 2129, 2216 }) {
         condition_features.push(v);
     }

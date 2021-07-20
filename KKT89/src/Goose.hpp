@@ -1,11 +1,11 @@
 ﻿#pragma once
 #include "Parameter.hpp"
-#include "Stack.hpp"
+#include "library.hpp"
 #include "Point.hpp"
 
 namespace hungry_geese {
 
-using Items = Stack<Cpoint, 77>;
+using Items = nagiss_library::Stack<Cpoint, 77>;
 
 struct Goose {
     // コンストラクタ

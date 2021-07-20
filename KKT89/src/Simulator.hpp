@@ -9,6 +9,7 @@
 #include "Timer.hpp"
 #include "Features.hpp"
 #include "Duct.hpp"
+#include "library.hpp"
 
 namespace hungry_geese {
     
