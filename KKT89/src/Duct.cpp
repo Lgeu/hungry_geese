@@ -69,7 +69,6 @@ Duct::State Duct::State::NextState(NodeType node_type, const unsigned char agent
     State nextstate(*this);
     if (node_type == NodeType::AGENT_NODE) {
         Simulate(nextstate, agent_action);
-        nextstate.last_actions = agent_action;
     }
     else {
         for (int i = 0; i < 2; ++i) {
@@ -85,82 +84,133 @@ Duct::State Duct::State::NextState(NodeType node_type, const unsigned char agent
     return nextstate;
 }
 
-void Duct::State::Simulate(State &state, unsigned char agent_action) {
-    static std::array<Cpoint, 77> new_geese;
-    static std::array<signed char, 5> new_boundary;
-    static std::array<signed char, 4> pre_gooselength;
-    unsigned char index = 0;
-    for (unsigned char i = 0; i < 4; ++i) {
-        new_boundary[i] = index;
-        pre_gooselength[i] = state.boundary[i + 1] - state.boundary[i];
-        if (pre_gooselength[i] == 0) {
-            agent_action /= 4;
-            continue;
-        }
-        auto head = Duct::Translate(state.geese[state.boundary[i]], agent_action%4);
-        agent_action /= 4;
-        bool eatFood = false;
-        for (int j = 0; j < 2; ++j) {
-            if (head == state.foods[j]) {
-                eatFood = true;
-                state.foods[j] = Cpoint(-1);
-            }
-        }
-        for (int j = state.boundary[i]; j < state.boundary[i + 1]; ++j, ++index) {
-            if (head == state.geese[j] && (j != state.boundary[i + 1] - 1 || eatFood)) {
-                // 頭が前ステップの自分のどこかとぶつかっている && (ぶつかっているのはしっぽ以外 || しっぽだけどちょうど餌を食べた)  // 自分の尻尾にぶつかりながら餌を食べること、無くないか？
-                index = new_boundary[i];  // 脱落
-                break;
-            }
-            new_geese[index] = state.geese[j];
-        }
-        if ((state.current_step + 1) % hungry_geese::Parameter::hunger_rate == 0) {
-            if (new_boundary[i] != index) {
-                index--;
-            }
-        }
-    }
-    new_boundary[4] = index;
+void Duct::State::Simulate(State &state, const unsigned char& agent_actions) {
+    // state のメンバ変数である geese, boundary, foods, current_step, last_actions, ranking を更新する。
+    // foods は食べても補充はしない。
+    // agent_actionsは 4 進数
+
+
+    // かっつ すまん…
+
+
+    // current_step の更新 (これだけ先)
     state.current_step++;
 
-    // この時点で new_geese と new_boundary は自己衝突に関しては正しい状態
+    // 行動選択時点での goose の長さ
+    auto last_lengths = std::array<int, 4>();
 
-    static std::array<unsigned char, 77> simulate_goose_positions;
-    std::fill(simulate_goose_positions.begin(), simulate_goose_positions.end(), 0);
-    for (int i = 0; i < index; ++i) {
-        simulate_goose_positions[new_geese[i].Id()]++;
+    // geese のコピー
+    static auto geese = std::array<nagiss_library::Stack<Cpoint, 77>, 4>();
+    for (auto idx_geese = 0; idx_geese < 4; idx_geese++) {
+        geese[idx_geese].clear();
+        for (auto j = state.boundary[idx_geese]; j < state.boundary[idx_geese + 1]; j++) {
+            geese[idx_geese].push(state.geese[j]);
+        }
+        last_lengths[idx_geese] = state.boundary[idx_geese + 1] - state.boundary[idx_geese];
+        if (last_lengths[idx_geese] == 0) {
+            ASSERT(state.ranking[idx_geese] > 0, "長さが 0 ならもう順位が確定しているはずだよ");
+        }
+        else {
+            ASSERT(state.ranking[idx_geese] <= 0, "長さが 0 じゃないのに順位が確定してるよ");
+        }
     }
-    index = 0;
-    for (int i = 0; i < 4; ++i) {
-        state.boundary[i] = index;
-        if(new_boundary[i] < new_boundary[i + 1]) {
-            auto head = new_geese[new_boundary[i]];
-            if (simulate_goose_positions[head.Id()] == 1) {
-                for (int j = new_boundary[i]; j < new_boundary[i + 1]; ++j, ++index) {
-                    state.geese[index] = new_geese[j];
-                }
+    // foods のコピー
+    auto foods = nagiss_library::Stack<Cpoint, 2>();
+    for (const auto& p : state.foods) {
+        ASSERT(p.Id() != -1, "なんか食べ物が -1 だよ");
+        foods.push(p);
+    }
+
+    // 各エージェントの処理
+    for (int idx_geese = 0; idx_geese < 4; idx_geese++) {
+        if (state.ranking[idx_geese] != 0) continue;
+        const auto action = (agent_actions >> 2 * idx_geese) & 3;
+        const auto last_action = (state.last_actions >> 2 * idx_geese) & 3;
+        ASSERT(action != (last_action ^ 2), "逆向きの行動は取らないはずだよ");
+        
+        auto& goose = geese[idx_geese];
+        ASSERT(goose.size() > 0, "脱落してるのに ranking が 0 だよ");
+        const auto head = Duct::Translate(goose[0], action);
+
+        // 食べ物
+        if (foods.contains(head)) {
+            foods.remove(head);
+        }
+        else {
+            goose.pop();
+        }
+
+        // 自己衝突
+        if (goose.contains(head)) {
+            goose.clear();
+        }
+
+        // 頭をつける
+        goose.insert(0, head);
+
+        // おなかすいた
+        if (state.current_step % hungry_geese::Parameter::hunger_rate == 0) {
+            if (goose.size() > 0) {
+                goose.pop();
             }
         }
     }
-    state.boundary[4] = index;
-    for (int i = 0; i < 4; ++i) {
-        // この行動によって脱落したAgentの順位付けをする
-        if (pre_gooselength[i] != 0 and state.boundary[i + 1] - state.boundary[i] == 0) {
-            unsigned char rank = 1;
-            for (int j = 0; j < 4; ++j) {
-                if (i == j) {
+    
+    static auto goose_positions = std::array<int, 77>();
+    std::fill(goose_positions.begin(), goose_positions.end(), 0);
+    for (const auto& goose : geese)
+        for (const auto& position : goose)
+            goose_positions[position.Id()]++;
+
+    // 相互衝突
+    for (int idx_geese = 0; idx_geese < 4; idx_geese++) {
+        auto& goose = geese[idx_geese];
+        if (goose.size() > 0) {
+            const auto& head = goose[0];
+            if (goose_positions[head.Id()] > 1) {
+                goose.clear();
+            }
+        }
+    }
+
+    // ranking の更新
+    for (int idx_geese = 0; idx_geese < 4; idx_geese++) {
+        if (last_lengths[idx_geese] > 0 && geese[idx_geese].size() == 0) {  // このステップに脱落した
+            int rank = 1;
+            for (int opponent = 0; opponent < 4; opponent++) {
+                if (idx_geese == opponent) {
                     continue;
                 }
-                else if (state.boundary[j + 1] - state.boundary[j] != 0) {
-                    rank++;
-                }
-                else if (pre_gooselength[j] < pre_gooselength[i]) {
+                // 相手がまだ生きてる or 同時に脱落したけど自分より長い なら負け
+                if (geese[opponent].size() > 0 || last_lengths[opponent] > last_lengths[idx_geese]) {
                     rank++;
                 }
             }
-            state.ranking[i] = rank;
+            state.ranking[idx_geese] = rank;
         }
     }
+
+    // geese, boundary の更新
+    ASSERT(state.boundary[0] == 0, "オイオイオイ 0 じゃないわこいつ");
+    int idx_geese_series = 0;
+    for (int idx_geese = 0; idx_geese < 4; idx_geese++) {
+        const auto& goose = geese[idx_geese];
+        ASSERT(goose.size() >= 0, "んん");
+
+        for (const auto& p : goose) {
+            state.geese[idx_geese_series++] = p;
+        }
+        state.boundary[idx_geese + 1] = idx_geese_series;
+    }
+
+    // foods の更新 (補充しない)
+    fill(state.foods.begin(), state.foods.end(), Cpoint(-1));
+    for (int idx_foods = 0; idx_foods < foods.size(); idx_foods++) {
+        state.foods[idx_foods] = foods[idx_foods];
+    }
+
+    // last_actions の更新
+    state.last_actions = agent_actions;
 }
 
 bool Duct::State::Finished() const {
@@ -239,9 +289,9 @@ bool Duct::Node::Expanded() const {
 }
 
 float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int& t_sum) {
-    constexpr float c_puct = 1.0;
-    return (2.5e-1 + GetWorth()[idx_agent][idx_move]) / (float)(1e-1 + n[idx_agent][idx_move]) 
-        + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt(t_sum) / (float)(1 + n[idx_agent][idx_move]);
+    constexpr float c_puct = 1.0f;
+    return (3.0f + GetWorth()[idx_agent][idx_move]) / (1.0f + (float)n[idx_agent][idx_move]) 
+        + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrtf(t_sum) / (float)(1 + n[idx_agent][idx_move]);
 }
 
 int Duct::Node::ChooseMove(const int& t_sum) {
@@ -566,18 +616,34 @@ void Duct::Iterate() {
     }
 
     /*
-    if (t_sum >= 1000) {
+    if (RootNode().state.current_step >= 80 && t_sum >= 1000) {
         int zero_counts = 0;
+        int sum_n = 0;
         for (int i = 0; i < 4; i++) {
             zero_counts += RootNode().n[0][i] == 0;
+            sum_n += RootNode().n[0][i];
         }
+        
         if (zero_counts >= 3) {
             for (int mv = 0; mv < 4; mv++) {
                 std::cerr << RootNode().Argvalue(0, mv, t_sum) << " ";
             }
             std::cerr << "???" << std::endl;
         }
-    }*/
+        
+        bool f = false;
+        for (int mv = 0; mv < 4; mv++) {
+            // 探索後の policy がモデルの policy と比べて極端に大きい
+            auto policy_after_search = (float)RootNode().n[0][mv] / (float)sum_n;
+            if (policy_after_search >= 0.4f && policy_after_search / RootNode().policy[0][mv] >= 10.0f) {
+                f = true;
+            }
+        }
+        if (f) {
+            std::cerr << "!?!?" << std::endl;
+        }
+    }
+    */
 }
 
 //------------------------------------------------------------------------------

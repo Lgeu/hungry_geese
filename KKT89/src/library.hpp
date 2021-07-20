@@ -314,6 +314,35 @@ template<class T, int max_size> struct Stack {
         data[right] = T(args...);
         right++;
     }
+    inline void insert(const int& idx, const T& value) {
+        ASSERT_RANGE(idx, 0, right + 1);
+        ASSERT_RANGE(right, 0, max_size);
+        int i = right;
+        right++;
+        while (i != idx) {
+            data[i] = data[i - 1];
+            i--;
+        }
+        data[idx] = value;
+    }
+    inline void del(const int& idx) {
+        ASSERT_RANGE(idx, 0, right);
+        right--;
+        for (int i = idx; i < right; i++) {
+            data[i] = data[i + 1];
+        }
+    }
+    inline int index(const T& value) const {
+        for (int i = 0; i < right; i++) {
+            if (value == data[i]) return i;
+        }
+        return -1;
+    }
+    inline void remove(const T& value) {
+        int idx = index(value);
+        ASSERT(idx != -1, "not contain the value.");
+        del(idx);
+    }
     inline void clear() {
         right = 0;
     }
@@ -371,6 +400,12 @@ template<class T, int max_size> struct Stack {
     const inline T& back() const {
         ASSERT(right > 0, "no data.");
         return data[right - 1];
+    }
+    inline bool contains(const T& value) const {
+        for (const auto& dat : *this) {
+            if (value == dat) return true;
+        }
+        return false;
     }
 
     inline vector<T> ToVector() {
