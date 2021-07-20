@@ -240,7 +240,8 @@ bool Duct::Node::Expanded() const {
 
 float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int& t_sum) {
     constexpr float c_puct = 1.0;
-    return GetWorth()[idx_agent][idx_move] / (float)(1e-1 + n[idx_agent][idx_move]) + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt(t_sum) / (float)(1 + n[idx_agent][idx_move]);
+    return (2.5e-1 + GetWorth()[idx_agent][idx_move]) / (float)(1e-1 + n[idx_agent][idx_move]) 
+        + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt(t_sum) / (float)(1 + n[idx_agent][idx_move]);
 }
 
 int Duct::Node::ChooseMove(const int& t_sum) {
@@ -563,6 +564,20 @@ void Duct::Iterate() {
         }
         v = &v->KthChildren(node_buffer, children_buffer, move_idx);
     }
+
+    /*
+    if (t_sum >= 1000) {
+        int zero_counts = 0;
+        for (int i = 0; i < 4; i++) {
+            zero_counts += RootNode().n[0][i] == 0;
+        }
+        if (zero_counts >= 3) {
+            for (int mv = 0; mv < 4; mv++) {
+                std::cerr << RootNode().Argvalue(0, mv, t_sum) << " ";
+            }
+            std::cerr << "???" << std::endl;
+        }
+    }*/
 }
 
 //------------------------------------------------------------------------------
