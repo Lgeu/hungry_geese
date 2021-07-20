@@ -4,7 +4,6 @@
 #include <chrono>
 #include "Point.hpp"
 #include "Stage.hpp"
-#include "Assert.hpp"
 #include "AgentResult.hpp"
 #include "library.hpp"
 #include "Evaluator.hpp"

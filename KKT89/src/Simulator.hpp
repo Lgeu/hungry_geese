@@ -7,7 +7,7 @@
 #include "Game.hpp"
 #include "Parameter.hpp"
 #include "Timer.hpp"
-#include "Features.hpp"
+#include "Evaluator.hpp"
 #include "Duct.hpp"
 #include "library.hpp"
 

@@ -1,6 +1,5 @@
 ﻿#pragma once
 #include "Random.hpp"
-#include "Assert.hpp"
 
 namespace hungry_geese {
 
