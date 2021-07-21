@@ -278,6 +278,7 @@ Duct::Node::Node(const State& aState, nagiss_library::Stack<Node*, children_buff
         if (aState.foods[0].Id() == -1 and aState.foods[1].Id() == -1) {
             n_children = n_children * (n_children - 1) / 2;
         }
+        ASSERT(n_children > 0, "食べ物置けないよ");
     }
 
     children_offset = children_buffer.size();
