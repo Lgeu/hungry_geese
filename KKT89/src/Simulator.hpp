@@ -8,6 +8,7 @@
 #include "Parameter.hpp"
 #include "Timer.hpp"
 #include "Evaluator.hpp"
+#include "Evaluator2.hpp"
 #include "Duct.hpp"
 #include "library.hpp"
 
