@@ -444,7 +444,7 @@ void Simulator::printKif() const {
             static auto agent_features = std::array<nagiss_library::Stack<int, 100>, 4>();
             static auto condition_features = nagiss_library::Stack<int, 100>();
 
-            evaluation_function_2::feature::ExtractFeatures(geese, foods, current_step, agent_features, condition_features);
+            evaluation_function::feature::ExtractFeatures(geese, foods, current_step, agent_features, condition_features);
             stage.mAgentResult[currentlySurvivingAgent].mAgentFeatures = agent_features;
             stage.mAgentResult[currentlySurvivingAgent].mConditionFeatures = condition_features;
 

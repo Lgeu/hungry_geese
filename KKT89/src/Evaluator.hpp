@@ -1,6 +1,8 @@
 ﻿#pragma once
 #define _CRT_SECURE_NO_WARNINGS
 
+#if false
+
 #include "library.hpp"
 #include <cstring>
 #ifdef _MSC_VER
@@ -1286,3 +1288,5 @@ void TestEvaluator() {
 }  // namespace evaluation_function
 
 }  // namespace hungry_geese
+
+#endif

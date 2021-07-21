@@ -11,7 +11,7 @@
 
 namespace hungry_geese {
 
-namespace evaluation_function_2 {
+namespace evaluation_function {
 
 using namespace std;
 

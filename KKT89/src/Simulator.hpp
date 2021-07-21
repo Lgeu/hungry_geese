@@ -7,7 +7,6 @@
 #include "Game.hpp"
 #include "Parameter.hpp"
 #include "Timer.hpp"
-#include "Evaluator.hpp"
 #include "Evaluator2.hpp"
 #include "Duct.hpp"
 #include "library.hpp"
@@ -27,7 +26,7 @@ struct Simulator {
     // 探索の時間を設定
     void SetTimeLimit(float atimelimit);
     // パラメータの設定
-    std::array<const char*, 4> parameter = {"./src/param_010_01.bin", "./src/param_010_01.bin", "./src/param_010_01.bin", "./src/param_010_01.bin"};
+    std::array<const char*, 4> parameter = {"./src/021_01.bin", "./src/021_01.bin", "./src/021_01.bin", "./src/021_01.bin"};
     // 棋譜の出力するディレクトリを指定
     std::string directory = "./src/out/";
 
