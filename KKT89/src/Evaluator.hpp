@@ -15,6 +15,8 @@ namespace evaluation_function {
 
 using namespace std;
 
+namespace nn {
+
 template<class T, int dim1, int dim2>
 struct Matrix {
     array<array<T, dim2>, dim1> data;
@@ -171,143 +173,58 @@ struct Tensor4 {
 };
 
 namespace F {
-    template<class Tensor>
-    inline void Relu_(Tensor& input) {
-        for (auto&& value : input.Ravel()) {
-            value = max(value, (typename remove_reference<decltype(input.Ravel()[0])>::type)0);
-        }
-    }
-    template<typename T, unsigned siz>
-    inline void Relu_(array<T, siz>& input) {
-        for (auto&& value : input) {
-            value = max(value, (T)0);
-        }
-    }
-    template<typename T, size_t siz>
-    inline void Hardtanh_(array<T, siz>& input, const T& min_val, const T& max_val) {
-        for (auto&& value : input) {
-            value = max(min_val, min(max_val, value));
-        }
-    }
-    template<class Container, typename T>
-    inline void Hardtanh_(Container& input, const T& min_val, const T& max_val) {
-        Hardtanh_(input.Ravel(), min_val, max_val);
-    }
-    template<typename T, size_t siz>
-    inline void Hardtanh_(array<T, siz>& input, const T& max_abs_val) {
-        Hardtanh_(input, (T)-max_abs_val, max_abs_val);
-    }
-    template<class Container, typename T>
-    inline void Hardtanh_(Container& input, const T& max_abs_val) {
-        Hardtanh_(input.Ravel(), max_abs_val);
-    }
-    template<typename T, size_t siz>
-    inline void ClippedRelu_(array<T, siz>& input, const T& max_val) {
-        Hardtanh_(input, (T)0, max_val);
-    }
-    template<class Container, typename T>
-    inline void ClippedRelu_(Container& input, const T& max_val) {
-        ClippedRelu_(input.Ravel(), max_val);
-    }
-
-    template<class T, size_t siz>
-    inline void Softmax_(array<T, siz>& input) {
-        auto ma = numeric_limits<float>::min();
-        for (const auto& v : input) if (ma < v) ma = v;
-        auto s = 0.0f;
-        for (const auto& v : input) s += expf(v - ma);
-        auto c = ma + logf(s);
-        for (auto&& v : input) v = expf(v - c);
-    }
-    inline float Sigmoid(const float& input) {
-        return 1.0f / (1.0f + expf(-input));
+template<class Tensor>
+inline void Relu_(Tensor& input) {
+    for (auto&& value : input.Ravel()) {
+        value = max(value, (typename remove_reference<decltype(input.Ravel()[0])>::type)0);
     }
 }
-
-template<int n_features>
-struct BatchNorm2d {
-    struct Parameter {
-        array<float, n_features> weight;  // gamma
-        array<float, n_features> bias;    // beta
-        array<float, n_features> running_mean;
-        array<float, n_features> running_var;
-        Parameter() : weight(), bias(), running_mean(), running_var() {
-            // weight と running_var は 1 で初期化
-            fill(weight.begin(), weight.end(), 1.0f);
-            fill(running_var.begin(), running_var.end(), 1.0f);
-        }
-    } parameters;
-
-    // コンストラクタ
-    BatchNorm2d() : parameters() {}
-
-    template<int height, int width>
-    void Forward_(Tensor3<float, n_features, height, width>& input) const {
-        for (int channel = 0; channel < n_features; channel++) {
-            const auto coef = parameters.weight[channel] / sqrtf(parameters.running_var[channel] + 1e-5f);
-            const auto bias_ = parameters.bias[channel] - coef * parameters.running_mean[channel];
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    input[channel][y][x] = input[channel][y][x] * coef + bias_;
-                }
-            }
-        }
+template<typename T, unsigned siz>
+inline void Relu_(array<T, siz>& input) {
+    for (auto&& value : input) {
+        value = max(value, (T)0);
     }
-};
-
-template<int input_dim, int output_dim, int kernel_size = 3>
-struct TorusConv2d {
-    struct Parameter {
-        Tensor4<float, output_dim, input_dim, kernel_size, kernel_size> weight;
-        array<float, output_dim> bias;
-    } parameters;
-
-    BatchNorm2d<output_dim> batchnorm;
-
-
-    // コンストラクタ
-    TorusConv2d() : parameters(), batchnorm() {}
-
-    constexpr void SetParameters() {
-        // 下手に実装すると拡張しにくくなりそう、型が混ざってる場合の対応が厄介
+}
+template<typename T, size_t siz>
+inline void Hardtanh_(array<T, siz>& input, const T& min_val, const T& max_val) {
+    for (auto&& value : input) {
+        value = max(min_val, min(max_val, value));
     }
+}
+template<class Container, typename T>
+inline void Hardtanh_(Container& input, const T& min_val, const T& max_val) {
+    Hardtanh_(input.Ravel(), min_val, max_val);
+}
+template<typename T, size_t siz>
+inline void Hardtanh_(array<T, siz>& input, const T& max_abs_val) {
+    Hardtanh_(input, (T)-max_abs_val, max_abs_val);
+}
+template<class Container, typename T>
+inline void Hardtanh_(Container& input, const T& max_abs_val) {
+    Hardtanh_(input.Ravel(), max_abs_val);
+}
+template<typename T, size_t siz>
+inline void ClippedRelu_(array<T, siz>& input, const T& max_val) {
+    Hardtanh_(input, (T)0, max_val);
+}
+template<class Container, typename T>
+inline void ClippedRelu_(Container& input, const T& max_val) {
+    ClippedRelu_(input.Ravel(), max_val);
+}
 
-    template<int height, int width>
-    void Forward(
-        const Tensor3<float, input_dim, height, width>& input,
-        Tensor3<float, output_dim, height, width>& output) const {
-        // これループの順番変えるだけで速度だいぶ変わりそう…
-        constexpr auto pad = kernel_size / 2;
-        static_assert(height >= pad, "2 周回るようなカーネルサイズは未対応だよ");
-        static_assert(width >= pad, "2 周回るようなカーネルサイズは未対応だよ");
-        // 効率化した版
-        const auto permuted_input = input.template Permute<1, 2, 0>();
-        const auto permuted_weight = parameters.weight.template Permute<2, 3, 0, 1>();
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                for (int out_channel = 0; out_channel < output_dim; out_channel++) {
-                    output[out_channel][y][x] = parameters.bias[out_channel];
-                }
-                for (int ky = 0; ky < kernel_size; ky++) {
-                    auto y_from = y + ky - pad;
-                    if (y_from < 0) y_from += height;
-                    else if (y_from >= height) y_from -= height;
-                    for (int kx = 0; kx < kernel_size; kx++) {
-                        auto x_from = x + kx - pad;
-                        if (x_from < 0) x_from += width;
-                        else if (x_from >= width) x_from -= width;
-                        for (int out_channel = 0; out_channel < output_dim; out_channel++) {
-                            for (int in_channel = 0; in_channel < input_dim; in_channel++) {
-                                output[out_channel][y][x] += permuted_input[y_from][x_from][in_channel] * permuted_weight[ky][kx][out_channel][in_channel];
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        batchnorm.Forward_(output);
-    }
-};
+template<class T, size_t siz>
+inline void Softmax_(array<T, siz>& input) {
+    auto ma = numeric_limits<float>::min();
+    for (const auto& v : input) if (ma < v) ma = v;
+    auto s = 0.0f;
+    for (const auto& v : input) s += expf(v - ma);
+    auto c = ma + logf(s);
+    for (auto&& v : input) v = expf(v - c);
+}
+inline float Sigmoid(const float& input) {
+    return 1.0f / (1.0f + expf(-input));
+}
+}  // namespace F
 
 template<int in_features, int out_features, typename dtype = float, typename out_dtype = float>
 struct alignas(32) Linear {
@@ -319,7 +236,7 @@ struct alignas(32) Linear {
     // コンストラクタ
     Linear() : parameters() {}
 
-    template<bool check_overflow=false>
+    template<bool check_overflow = false>
     void Forward(const array<dtype, in_features>& input, array<out_dtype, out_features>& output) const {
         constexpr auto USE_AVX2 = true;
 
@@ -370,7 +287,7 @@ struct alignas(32) Linear {
                 return _mm_add_epi32(_mm_add_epi32(sum128lo, sum128hi), bias);  // 0123
             };
 
-		    const auto input_vector = reinterpret_cast<const __m256i*>(&input[0]);
+            const auto input_vector = reinterpret_cast<const __m256i*>(&input[0]);
             for (int i = 0; i < out_features; i += 4) {
                 const __m128i bias = *reinterpret_cast<const __m128i*>(&parameters.bias[i]);
                 __m128i* outptr = reinterpret_cast<__m128i*>(&output[i]);
@@ -473,7 +390,7 @@ struct alignas(32) EmbeddingBag {
 template<int in_dim, int out_dim, int hidden_1, int hidden_2>
 struct Model {
     using out_dtype = int;
-    EmbeddingBag<in_dim + 1, hidden_1, short> embed;
+    EmbeddingBag<in_dim + 1, hidden_1, short> embed;  // Python 側の都合でひとつ多く持つ
     Linear<hidden_1, hidden_2, signed char, out_dtype> linear_condition;
     Linear<hidden_1, hidden_2, signed char, out_dtype> linear_2;
     Linear<hidden_2, hidden_2, signed char, out_dtype> linear_3;
@@ -622,6 +539,7 @@ struct Model {
 
 };
 
+}  // namespace nn
 
 
 struct BitBoard {
@@ -780,82 +698,6 @@ struct BitBoard {
     }
 };
 
-/*
-namespace test {
-    void CheckLinear() {
-        auto linear = Linear<3, 4>();
-        iota(linear.parameters.weight.Ravel().begin(), linear.parameters.bias.end(), 0.0f);
-        auto input = array<float, 3>{3.0, -2.0, 1.0};
-        auto output = array<float, 4>();
-        linear.Forward(input, output);
-        for (int i = 0; i < 4; i++) cout << output[i] << " \n"[i == 3];  // => 12, 19, 26, 33
-    }
-    void CheckTorusConv2d() {
-        constexpr auto input_dim = 4;
-        constexpr auto output_dim = 2;
-        auto conv = TorusConv2d<input_dim, output_dim>();
-        conv.parameters.weight[1].Fill(1.0);
-        conv.parameters.weight[0][0][0][0] = 1.0f;
-        conv.parameters.weight[0][0][0][1] = 2.0f;
-        conv.parameters.weight[0][1][0][0] = 7.0f;
-        conv.parameters.weight[1][0][2][1] = 11.0f;
-        conv.parameters.bias[1] = -1.0f;
-        conv.batchnorm.parameters.running_mean[0] = 3.0f;
-        conv.batchnorm.parameters.running_var[0] = 0.25f;
-        conv.batchnorm.parameters.weight[0] = -1.0f;
-        conv.batchnorm.parameters.bias[0] = -5.0f;
-        auto input = Tensor3<float, input_dim, 4, 5>();
-        auto output = Tensor3<float, output_dim, 4, 5>();
-        conv.parameters.weight.Print();
-        input[0][0][0] = 1.0f;
-        input[0][1][2] = 5.0f;
-        input[1][2][3] = 3.0f;
-        conv.Forward(input, output);
-        cout << "Input:" << endl;
-        input.Print();
-        cout << "Output:" << endl;
-        output.Print();
-        // [[[  0.9999,   0.9999,   0.9999,   0.9999,   0.9999],
-        //   [ -3.0000,  -1.0001,   0.9999,   0.9999,   0.9999],
-        //   [  0.9999,   0.9999, -18.9997,  -8.9999,   0.9999],
-        //   [  0.9999,   0.9999,   0.9999,   0.9999, -40.9993]],
-
-        //  [[  0.0000,   5.0000,  53.9997,   4.0000,   0.0000],
-        //   [  0.0000,   5.0000,   7.0000,   7.0000,   3.0000],
-        //   [ -1.0000,   4.0000,   7.0000,   7.0000,   2.0000],
-        //   [ 10.0000,   0.0000,   2.0000,   2.0000,   3.0000]]]
-    }
-    void CheckModel() {
-        // TODO
-    }
-    // 100 回予測する時間の計測
-    void CheckPredictionTime() {
-        // TODO
-        using namespace nagiss_library;
-        auto model = GeeseNet<>();
-        auto input = Tensor3<float, 17, 7, 11>();
-        auto output_policy = array<float, 4>();
-        auto output_value = 0.0f;
-        auto rng = Random(time() * 1e9);
-        auto t0 = time();
-        // ランダムにパラメータをセットする
-        // モデルがパラメータ以外の変数を持っていた場合使えない、あと sqrt 部分もやばい
-        //for(auto ptr = (float*)&model; ptr != (float*)&model + sizeof(model) / sizeof(float); ptr++){
-        //    *ptr = rng.random() * 1e-3;
-        //}
-        // この include がコンパイル時に激重なので必要なければコメントアウトする
-        //#include "parameters.hpp"
-        for (int i = 0; i < 100; i++) {
-            for (auto&& v : input.Ravel()) v = rng.random();  // ランダムに入力をセットする
-            input[0][rng.randint(7)][rng.randint(11)] = 1.0f;
-            model.Forward(input, output_policy, output_value);
-            for (int j = 0; j < 4; j++) cout << output_policy[j] << " \n"[j == 3];
-            cout << output_value << "\n";
-        }
-        cout << "time=" << time() - t0 << endl;
-    }
-};
-*/
 
 namespace feature {
 
@@ -1326,7 +1168,7 @@ void ExtractFeatures(
 }  // namespace feature
 
 struct Evaluator {
-    Model<feature::NN_INPUT_DIM, 5, 256, 32> model;  // Python 側の都合でひとつ多く持つ
+    nn::Model<feature::NN_INPUT_DIM, 5, 256, 32> model;
     inline Evaluator() {}
     void SetParameter(const char* parameter) {
         model.LoadParameters(parameter);
@@ -1408,7 +1250,7 @@ void TestModel() {
     for (const auto& v : { 2106, 2129, 2216 }) {
         condition_features.push(v);
     }
-    static auto output = Matrix<float, 4, 5>();
+    static auto output = nn::Matrix<float, 4, 5>();
     ev.model.Forward(agent_features, condition_features, output);
     output.Print();
     //   [[-1.0769, -4.7849, 2.8149, 2.4629, 2.8657],
@@ -1439,8 +1281,8 @@ void TestEvaluator() {
     cerr << s << endl;
 }
 
-}
+}  // namespace test
 
-}
+}  // namespace evaluation_function
 
-}
+}  // namespace hungry_geese
