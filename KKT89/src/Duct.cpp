@@ -61,7 +61,7 @@ Duct::State::State(hungry_geese::Stage aStage, int aIndex) : geese(), boundary()
     }
 }
 
-unsigned char Duct::State::goose_size(unsigned char idx_agent) {
+signed char Duct::State::goose_size(signed char idx_agent) {
     return boundary[idx_agent + 1] - boundary[idx_agent];
 }
 
@@ -511,18 +511,29 @@ void Duct::Iterate() {
     Node* v = &RootNode();
     nagiss_library::Stack<int, 200> path;
     // 展開されてない、エージェントのノードに到達したら抜ける
-    while (v->Expanded() or v->node_type == NodeType::FOOD_NODE) {
+    // 7/22修正：自分が脱落したら抜けるようにした
+    while (true) {
+        if (v->node_type == NodeType::AGENT_NODE) {
+            if (!v->Expanded()) break; // 展開されていない
+            if (v->state.Finished()) break; // 生存者が1人以下 または ターン数が199
+            if (v->state.goose_size(0) == 0) break; // 自分が既に脱落している
+        }
+        // break されていなければ次のノードに行く
         int move_idx = v->ChooseMove(t_sum);
         path.push(move_idx);
         v = &v->KthChildren(node_buffer, children_buffer, move_idx);
-        if (v->state.Finished()) { // 終局状態
-            break;
-        }
     }
 
     // 葉ノードの処理
     std::array<float, 4> value{};
-    if (v->state.Finished()) {
+    // メモしたのを利用
+    if (v->Expanded()) { 
+        for (int i = 0; i < 4; ++i) {
+            value[i] = v->value[i];
+        }
+    }
+    // 終局したので順位を確定
+    else if (v->state.Finished()) {
         for (int i = 0; i < 4; ++i) {
             // 生き残ってる
             if (v->state.boundary[i + 1] > v->state.boundary[i]) {
@@ -554,6 +565,7 @@ void Duct::Iterate() {
             }
         }
     }
+    // modelを呼び出す
     else {
         Node* const leaf = v;
         std::array<nagiss_library::Stack<int, 77>, 4> geese;
@@ -580,6 +592,11 @@ void Duct::Iterate() {
             }
             value[i] = res[i].value;
         }
+    }
+
+    // 評価値のメモ
+    for (int i = 0; i < 4; ++i) {
+        v->value[i] = value[i];
     }
 
     // 葉までの評価結果を経路のノードに反映

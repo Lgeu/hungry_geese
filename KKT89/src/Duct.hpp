@@ -38,7 +38,7 @@ struct Duct {
         std::array<signed char, 4> ranking;
 
         // idx_agent 番目のgooseのサイズを返す
-        unsigned char goose_size(unsigned char idx_agent);
+        signed char goose_size(signed char idx_agent);
         // 手を引数で渡して次のノードを得る
         // food_sub : 食べ物が2個同時に消える場合256だと情報足りない
         State NextState(NodeType node_type, const unsigned char agent_action, const unsigned char food_sub) const;
