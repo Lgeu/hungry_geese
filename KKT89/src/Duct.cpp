@@ -441,19 +441,7 @@ void Duct::Node::Debug() const {
 }
 
 //------------------------------------------------------------------------------
-// コンストラクタ
-Duct::Duct(const Node& arg_state) {
-    node_buffer[0] = arg_state;
-    for (auto&& c : children_buffer) c = nullptr;
-    t_sum = 0;
-}
 // 初期化
-void Duct::InitDuct(const Node& arg_state) {
-    node_buffer.clear();
-    node_buffer.push(arg_state);
-    children_buffer.clear();
-    t_sum = 0;
-}
 void Duct::InitDuct(hungry_geese::Stage aStage, int aIndex) {
     children_buffer.clear();
     t_sum = 0;
