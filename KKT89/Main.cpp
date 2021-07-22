@@ -30,7 +30,7 @@ int GetDirection(hungry_geese::Cpoint pre, hungry_geese::Cpoint cur) {
 }
 
 void Input(std::array<hungry_geese::Stage, 200> &stages, const int idx) {
-    auto stage = stages[idx];
+    auto &stage = stages[idx];
     std::cin >> stage.mRemainingTime[0];
     std::cin >> stage.mTurn;
     for (int i = 0; i < 4; ++i) {
