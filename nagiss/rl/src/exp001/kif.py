@@ -30,9 +30,11 @@ class Kif:
                 entries = {k: v for k, v in entries.items() if k != "items"}
                 dict.__init__(self, entries)
                 self.__dict__.update(entries)
+
             def __setattr__(self, attr, value):
                 self.__dict__[attr] = value
                 self[attr] = value
+
         res = []
         for step in self.steps:
             agents = [Struct() for _ in range(4)]
@@ -47,8 +49,7 @@ class Kif:
             agents[0].observation.food = step.food_positions
             res.append(agents)
         return res
-
-
+    
     @classmethod
     def from_dict(cls, d):
         d = d.copy()
@@ -64,45 +65,50 @@ class Kif:
         Returns:
 
         """
-        with open(filename) as f:
-            format_version = f.readline().strip()
-            kif_id = f.readline().strip()
-            seed = int(f.readline().strip())
-            agent_information = [f.readline().strip() for _ in range(4)]
-            steps = []
-            while True:
-                step = int(f.readline().strip())
-                remaining_times = list(map(float, f.readline().strip().split()))
-                agent_positions = []
-                for _ in range(4):
-                    _, *positions = map(int, f.readline().strip().split())
-                    agent_positions.append(positions)
-                food_positions = list(map(int, f.readline().strip().split()))
-                moves = list(map(int, f.readline().strip().split()))
-                values = [list(map(float, f.readline().strip().split())) for _ in range(4)]
-                agent_features = [list(map(int, f.readline().strip().split()))[1:] for _ in range(4)]
-                _, *condition_features = map(int, f.readline().strip().split())
-                steps.append({
-                    "step": step,
-                    "remaining_times": remaining_times,
-                    "agent_positions": agent_positions,
-                    "food_positions": food_positions,
-                    "moves": moves,
-                    "values": values,
-                    "agent_features": agent_features,
-                    "condition_features": condition_features,
+        try:
+            with open(filename) as f:
+                format_version = f.readline().strip()
+                kif_id = f.readline().strip()
+                seed = int(f.readline().strip())
+                agent_information = [f.readline().strip() for _ in range(4)]
+                steps = []
+                while True:
+                    step = int(f.readline().strip())
+                    remaining_times = list(map(float, f.readline().strip().split()))
+                    agent_positions = []
+                    for _ in range(4):
+                        _, *positions = map(int, f.readline().strip().split())
+                        agent_positions.append(positions)
+                    food_positions = list(map(int, f.readline().strip().split()))
+                    moves = list(map(int, f.readline().strip().split()))
+                    values = [list(map(float, f.readline().strip().split())) for _ in range(4)]
+                    agent_features = [list(map(int, f.readline().strip().split()))[1:] for _ in range(4)]
+                    _, *condition_features = map(int, f.readline().strip().split())
+                    steps.append({
+                        "step": step,
+                        "remaining_times": remaining_times,
+                        "agent_positions": agent_positions,
+                        "food_positions": food_positions,
+                        "moves": moves,
+                        "values": values,
+                        "agent_features": agent_features,
+                        "condition_features": condition_features,
+                    })
+                    if all(m == -100 for m in moves):
+                        break
+                ranks = list(map(int, f.readline().strip().split()))
+                return cls.from_dict({
+                    "format_version": format_version,
+                    "kif_id": kif_id,
+                    "seed": seed,
+                    "agent_information": agent_information,
+                    "steps": steps,
+                    "ranks": ranks,
                 })
-                if all(m == -100 for m in moves):
-                    break
-            ranks = list(map(int, f.readline().strip().split()))
-            return cls.from_dict({
-                "format_version": format_version,
-                "kif_id": kif_id,
-                "seed": seed,
-                "agent_information": agent_information,
-                "steps": steps,
-                "ranks": ranks,
-            })
+        except Exception as e:
+            print(f"file reader error! {filename}")
+            print("skipped!")
+            #raise e
 
 
 from bisect import bisect_right
@@ -120,6 +126,7 @@ FEATURE_NAMES = """
     RELATIVE_POSITION_TAIL,
     RELATIVE_POSITION_OPPONENT_HEAD,
     RELATIVE_POSITION_OPPONENT_HEAD_FROM_TAIL,
+    RELATIVE_POSITION_OPPONENT_TAIL,
     RELATIVE_POSITION_FOOD,
     MOVE_HISTORY,
     RELATIVE_POSITION_TAIL_ON_PLANE_X,
@@ -156,12 +163,8 @@ FEATURE_NAMES = """
 
 
 def interpret_feature(feature):
-    BOUNDARY = [0, 128, 256, 384, 512, 589, 610, 631, 652, 673, 750, 826, 902, 978, 1234, 1295, 1356, 1362, 1376, 1402,
-                1442, 1496, 1562, 1636, 1714, 1718, 1722, 1726, 1730, 1734, 1738, 1742, 1746, 1752, 1766, 1792, 1832,
-                1886, 1952, 2026, 2104, 2107, 2183, 2382]
-    OFFSET = [0, 128, 256, 384, 511, 599, 620, 641, 662, 673, 749, 825, 901, 978, 1264, 1325, 1356, 1362, 1376, 1402,
-              1442, 1496, 1562, 1636, 1714, 1718, 1722, 1726, 1730, 1734, 1738, 1742, 1746, 1752, 1766, 1792, 1832,
-              1886, 1952, 2026, 2102, 2105, 2183, ]
+    BOUNDARY = [0,128,256,384,512,589,610,631,652,673,750,826,902,978,1054,1310,1371,1432,1438,1452,1478,1518,1572,1638,1712,1790,1794,1798,1802,1806,1810,1814,1818,1822,1828,1842,1868,1908,1962,2028,2102,2180,2183,2259,2458]
+    OFFSET   = [0,128,256,384,511,599,620,641,662,673,749,825,901,977,1054,1340,1401,1432,1438,1452,1478,1518,1572,1638,1712,1790,1794,1798,1802,1806,1810,1814,1818,1822,1828,1842,1868,1908,1962,2028,2102,2178,2181,2259,]
     feature_type = bisect_right(BOUNDARY, feature) - 1
     assert 0 <= feature_type < len(OFFSET), f"feature={feature}, feature_type={feature_type}"
     feature_value = feature - OFFSET[feature_type]
@@ -169,19 +172,12 @@ def interpret_feature(feature):
     return res
 
 
-def test_kif_read(file="./KKT89/src/out/20210712175538_1926312680.kif1"):
+def test_kif_read(file="kif.kif1"):
     kif = Kif.from_file(file)
-    pprint(asdict(kif))
+    print(asdict(kif))
     for step in kif.steps:
         print(f"# step {step.step}")
         for idx_agent, features in enumerate(step.agent_features):
             print(f"- agent {idx_agent}")
             for f in features:
                 print("  -", interpret_feature(f))
-        print("- condition")
-        for f in step.condition_features:
-            print("  -", interpret_feature(f))
-
-
-if __name__ == "__main__":
-    test_kif_read()

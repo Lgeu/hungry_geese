@@ -9,8 +9,6 @@ from torch import nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
-from kif import Kif
-
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, kif_files):
@@ -102,9 +100,9 @@ class FastDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.data)
 
-
+    
 class EfficientDataset(torch.utils.data.Dataset):
-    def __init__(self, kif_files):
+    def __init__(self, kif_files, max_data_size=200*100000):
         """局面をテンソルにまとめて持っておくデータセット
         
         Args:
@@ -112,7 +110,7 @@ class EfficientDataset(torch.utils.data.Dataset):
         """
 
         self.kif_files = kif_files
-        self.max_data_size = 200 * 50000  # -> 1e7
+        self.max_data_size = max_data_size  # -> 2e7
         self.max_feature_size = 50
         
         self.agent_feature_buffer     = torch.full((self.max_data_size, 4, self.max_feature_size), -100, dtype=torch.int16)
@@ -123,9 +121,17 @@ class EfficientDataset(torch.utils.data.Dataset):
         self.data_size = 0
         self.load_all_states(kif_files)
     
+    def copy(self):
+        new_dataset = EfficientDataset([])
+        new_dataset.agent_feature_buffer[:self.data_size]     = self.agent_feature_buffer[:self.data_size]
+        new_dataset.condition_feature_buffer[:self.data_size] = self.condition_feature_buffer[:self.data_size]
+        new_dataset.target_rank_buffer[:self.data_size]       = self.target_rank_buffer[:self.data_size]
+        new_dataset.target_policy_buffer[:self.data_size]     = self.target_policy_buffer[:self.data_size]
+        new_dataset.data_size = self.data_size
+        return new_dataset
     
     def load_all_states(self, kif_files):
-        idx = 0
+        idx = self.data_size
         for file in tqdm(kif_files):
             kif = Kif.from_file(file)
             if kif is None:
@@ -175,7 +181,7 @@ class Model(nn.Module):
         self.hidden_1 = hidden_1
         self.hidden_2 = hidden_2
         self.embed = nn.EmbeddingBag(features+1, hidden_1, mode="sum", padding_idx=features)
-        self.embed.weight.data /= 32.0  # 小さめの値で初期化
+        self.embed.weight.data /= 16.0  # 小さめの値で初期化
         self.linear_condition = nn.Linear(hidden_1, hidden_2)
         self.linear_condition.weight.data #/= 2.0
         self.linear_condition.bias.data += 0.5
@@ -186,7 +192,7 @@ class Model(nn.Module):
         self.linear_3.weight.data /= 2.0
         self.linear_3.bias.data += 0.5
         self.linear_4 = nn.Linear(hidden_2, out_dim)
-        self.linear_4.bias.data += 0.5
+        #self.linear_4.bias.data += 0.5
         self.quantized = False
 
     def forward(self, x, condition, ignore_rounding=False, debug=False):
@@ -428,18 +434,19 @@ def tee(text, f=None):
 
 def plot_weight(model):
     qmodel = model.quantize()
-    plt.hist(qmodel.embed.weight.detach().numpy().ravel(), bins=256, range=(-1024.5, 1023.5))
+    plt.hist(qmodel.embed.weight.detach().to("cpu").numpy().ravel(), bins=256, range=(-1024.5, 1023.5))
     plt.show()
-    plt.hist(qmodel.linear_condition.weight.detach().numpy().ravel(), bins=256, range=(-128.5, 127.5))
+    plt.hist(qmodel.linear_condition.weight.detach().to("cpu").numpy().ravel(), bins=256, range=(-128.5, 127.5))
     plt.show()
-    plt.hist(qmodel.linear_2.weight.detach().numpy().ravel(), bins=256, range=(-128.5, 127.5))
+    plt.hist(qmodel.linear_2.weight.detach().to("cpu").numpy().ravel(), bins=256, range=(-128.5, 127.5))
     plt.show()
-    plt.hist(qmodel.linear_3.weight.detach().numpy().ravel(), bins=256, range=(-128.5, 127.5))
+    plt.hist(qmodel.linear_3.weight.detach().to("cpu").numpy().ravel(), bins=256, range=(-128.5, 127.5))
     plt.show()
-    plt.hist(qmodel.linear_4.weight.detach().numpy().ravel(), bins=256, range=(-128.5, 127.5))
+    plt.hist(qmodel.linear_4.weight.detach().to("cpu").numpy().ravel(), bins=256, range=(-128.5, 127.5))
     plt.show()
     for name, params in qmodel.named_parameters():
-        print(name, params.data.min().numpy(), params.data.max().numpy())
+        print(name, params.data.to("cpu").min().numpy(), params.data.to("cpu").max().numpy())
+
 
 if __name__ == "__main__":
     # 学習
@@ -447,12 +454,13 @@ if __name__ == "__main__":
     # 設定
     #torch.set_num_threads(2)
     batch_size = 4096
-    device = "cpu"   # 2.2 it/sec (batch_size = 4096)
-    #device = "cuda"  # 10 it/sec (batch_size = 4096)
-    n_epochs = 100
+    #device = "cpu"   # 2.5 it/sec (batch_size = 4096)
+    #device = "cuda"  # 30 it/sec (batch_size = 4096)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    n_epochs = 250
     sgd_learning_rate = 1e-1
     adam_learning_rate = 1e-3
-    N_FEATURES = 2382
+    N_FEATURES = 2458
     out_dir = Path("./out")
     #kif_files = ["kif.kif1"] * 4096  # TODO
 
@@ -474,6 +482,10 @@ if __name__ == "__main__":
         collate_fn=collate_fn, pin_memory=True, drop_last=True
     )
     print("loaded!")
+    if "additional_kif_files" in vars():
+        print("loading additional data...")
+        dataset.load_all_states(additional_kif_files)
+        print("loaded!")
 
     # モデル、最適化手法、損失関数
     model = Model(features=N_FEATURES)
@@ -490,9 +502,10 @@ if __name__ == "__main__":
     
     # チェックポイントの読み込み
     if "old_checkpoint_file" in vars() and Path(old_checkpoint_file).is_file():
-        dict_checkpoint = torch.load(old_checkpoint_file)
+        dict_checkpoint = torch.load(old_checkpoint_file, map_location=device)
         print("checkpoint file found!")
         start_epoch = dict_checkpoint["epoch"] + 1
+        dict_checkpoint["state_dict"]["linear_4.bias"][0] = 0.0
         model.load_state_dict(dict_checkpoint["state_dict"])
         #optimizer.load_state_dict(dict_checkpoint["optimizer"])
 
@@ -500,7 +513,7 @@ if __name__ == "__main__":
     
     # 学習ループ
     for epoch in range(start_epoch, n_epochs):
-        if epoch % 5 == 0:
+        if epoch % 10 == 0:
             plot_weight(model)
         
         
@@ -533,7 +546,7 @@ if __name__ == "__main__":
         tee(f"epoch_loss = {epoch_loss}", f_log)
         epoch_losses.append(epoch_loss)
 
-        if out_dir is not None and (epoch % 5 == 0 or epoch == n_epochs - 1):
+        if out_dir is not None and (epoch % 10 == 0 or epoch == n_epochs - 1):
             torch.save({
                 "epoch": epoch,
                 "epoch_loss": epoch_loss,
@@ -543,3 +556,6 @@ if __name__ == "__main__":
             }, checkpoint_dir / f"{epoch:03d}.pt")
 
     f_log.close()
+
+
+# TODO: 環境チェック
