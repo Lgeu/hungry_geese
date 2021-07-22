@@ -86,9 +86,6 @@ struct Duct {
     evaluation_function::Evaluator nnue;
     int t_sum; // 累計試行回数
 
-    Duct(const Node& arg_state);
-    // 初期化
-    void InitDuct(const Node& arg_state);
     void InitDuct(hungry_geese::Stage aStage, int aIndex);
 
     // 探索
