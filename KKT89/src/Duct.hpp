@@ -57,6 +57,7 @@ struct Duct {
         std::array<float, 4> value; // 状態評価値4人分
         std::array<std::array<float, 4>, 4> worth; // 各エージェント視点の各手の累積価値
         std::array<std::array<int, 4>, 4> n; // 各手の選ばれた回数
+        int visited; // このノードを訪れた回数
         int n_children; // 子ノードの数
         int children_offset; // 子ノード
         NodeType node_type; // エージェントのノード (0) か、食べ物のノード (1) か
