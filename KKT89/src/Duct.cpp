@@ -261,9 +261,9 @@ const std::array<std::array<float, 4>, 4>& Duct::Node::GetWorth() const {
     return worth;
 }
 
-Duct::Node::Node() : state(), policy(), value(), worth(), n(), n_children(), children_offset(), node_type() {}
+Duct::Node::Node() : state(), policy(), value(), worth(), n(), visited(), n_children(), children_offset(), node_type() {}
 
-Duct::Node::Node(const State& aState, nagiss_library::Stack<Node*, children_buffer_size>& children_buffer) : state(aState), policy(), value(), worth(), n(), children_offset(), node_type() {
+Duct::Node::Node(const State& aState, nagiss_library::Stack<Node*, children_buffer_size>& children_buffer) : state(aState), policy(), value(), worth(), n(), visited(), children_offset(), node_type() {
     policy[0][0] = -100.0;
 
     if (aState.foods[0].Id() == -1 or aState.foods[1].Id() == -1) {
@@ -578,8 +578,16 @@ void Duct::Iterate() {
         // break されていなければ次のノードに行く
         int move_idx = v->ChooseMove(t_sum);
         path.push(move_idx);
+
+        // 7/23；Nodeに訪れた回数を記録
+        // 多分ここで加算すれば良いと思ってる……
+        v->visited++;
+
         v = &v->KthChildren(node_buffer, children_buffer, move_idx);
     }
+
+    // 抜けたところ(=リーフノード)でも加算
+    v->visited++;
 
     // 葉ノードの処理
     std::array<float, 4> value{};
@@ -624,7 +632,6 @@ void Duct::Iterate() {
     }
     // modelを呼び出す
     else {
-        Node* const leaf = v;
         std::array<nagiss_library::Stack<int, 77>, 4> geese;
         std::array<int, 2> foods;
         std::array<int, 4> rank;
