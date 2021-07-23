@@ -9,6 +9,8 @@ from torch import nn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
+from kif import Kif
+
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, kif_files):
