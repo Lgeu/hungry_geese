@@ -1046,6 +1046,9 @@ void ExtractFeatures(
 
         // 食べ物の位置
         for (int idx_foods = 0; idx_foods < foods.size(); idx_foods++) {
+            if (foods[idx_foods] == -1) {
+                continue;
+            }
             const auto relative_food = CalcRelativePosition(head, foods[idx_foods]);
             ASSERT_RANGE(relative_food, MIN[Features::RELATIVE_POSITION_FOOD], MAX[Features::RELATIVE_POSITION_FOOD] + 1);
             features.push(OFFSET[Features::RELATIVE_POSITION_FOOD] + relative_food);

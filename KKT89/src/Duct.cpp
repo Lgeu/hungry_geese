@@ -117,7 +117,8 @@ void Duct::State::Simulate(State &state, const unsigned char& agent_actions) {
     // foods のコピー
     auto foods = nagiss_library::Stack<Cpoint, 2>();
     for (const auto& p : state.foods) {
-        ASSERT(p.Id() != -1, "なんか食べ物が -1 だよ");
+        // ASSERT(p.Id() != -1, "なんか食べ物が -1 だよ");
+        // 7/23修正：-1なことがあるように
         foods.push(p);
     }
 
@@ -143,6 +144,7 @@ void Duct::State::Simulate(State &state, const unsigned char& agent_actions) {
         // 自己衝突
         if (goose.contains(head)) {
             goose.clear();
+            continue;
         }
 
         // 頭をつける
@@ -229,6 +231,16 @@ bool Duct::State::Finished() const {
 }
 
 void Duct::State::Debug() const {
+    // Goose
+    for (int i = 0; i < 4; ++i) {
+        std::cerr << boundary[i + 1] - boundary[i];
+        for (int j = boundary[i]; j < boundary[i + 1]; ++j) {
+            std::cerr << " " << (int)(geese[j].Id());
+        }
+        std::cerr << std::endl;
+    }
+    // food
+    std::cerr << (int)(foods[0].Id()) << " " << (int)(foods[1].Id()) << std::endl;
     // lastmove
     int act = last_actions;
     std::cerr << "last_actions";
@@ -259,6 +271,51 @@ Duct::Node::Node(const State& aState, nagiss_library::Stack<Node*, children_buff
     }
 
     // 子ノードの数を数える処理
+
+    // 7/23修正；NodeType::FOOD_NODEを先に処理
+    if (node_type == NodeType::FOOD_NODE) {
+        int empty_cell = 77;
+        for (int i = 0; i < 2; ++i) {
+            if (aState.foods[i].Id() != -1) {
+                empty_cell--;
+            }
+        }
+        empty_cell -= aState.boundary[4];
+
+        // 7/23修正：NodeType::FOOD_NODEなのに食べ物が置けないことがあるのを直したい
+
+        // 2個食べ物を補充したい
+        if (aState.foods[0].Id() == -1 and aState.foods[1].Id() == -1) {
+            // 問題なく2個置ける
+            if (empty_cell >= 2) {
+                n_children = empty_cell * (empty_cell - 1) / 2;
+            }
+            else if (empty_cell == 1) {
+                // 1個だけ置ける
+                // 子ノードの数は 1 (= empty_cell)
+                n_children = empty_cell;
+            }
+            else {
+                // 1個も置けない　つまりAGENT_NODE
+                node_type = NodeType::AGENT_NODE;
+            }
+        }
+        // 1個食べ物を補充したい
+        else {
+            // 問題なく1個置ける
+            if (empty_cell >= 1) {
+                // このままでOK
+                n_children = empty_cell;
+            }
+            else {
+                // 1個も置けない　つまりAGENT_NODE
+                node_type = NodeType::AGENT_NODE;
+            }
+        }
+
+    }
+    // else if でなく if にする
+    // 上の処理中で NodeType::AGENT_NODE になることがあるため
     if (node_type == NodeType::AGENT_NODE) {
         n_children = 1;
         for (unsigned char i = 0; i < 4; ++i) {
@@ -267,19 +324,13 @@ Duct::Node::Node(const State& aState, nagiss_library::Stack<Node*, children_buff
             }
         }
     }
-    else {
-        n_children = 77;
-        for (int i = 0; i < 2; ++i) {
-            if (aState.foods[i].Id() != -1) {
-                n_children--;
-            }
-        }
-        n_children -= aState.boundary[4];
-        if (aState.foods[0].Id() == -1 and aState.foods[1].Id() == -1) {
-            n_children = n_children * (n_children - 1) / 2;
-        }
-        ASSERT(n_children > 0, "食べ物置けないよ");
-    }
+
+    // ここを修正するとKthChildrenも見直す必要がある
+    // ぱっとみた感じ修正入らない気がした
+    // 次に修正すべきは食べ物いずれかが-1のAGENT_NODE時にmodelを呼び出さないようにする
+    // これはDuct::Iterateを見直す
+
+    ASSERT(n_children > 0, "n_childrenが0だよ");
 
     children_offset = children_buffer.size();
     children_buffer.resize(children_offset + n_children, nullptr);
@@ -372,6 +423,7 @@ Duct::Node& Duct::Node::KthChildren(nagiss_library::Stack<Node, node_buffer_size
                 used[i] = false;
             }
             int empty_cell = 77 - state.boundary[4];
+            int empty_food = 0;
             for (int i = 0; i < state.boundary[4]; ++i) {
                 used[state.geese[i].Id()] = true;
             }
@@ -380,11 +432,14 @@ Duct::Node& Duct::Node::KthChildren(nagiss_library::Stack<Node, node_buffer_size
                     empty_cell--;
                     used[state.foods[i].Id()] = true;
                 }
+                else {
+                    empty_food++;
+                }
             }
             // 空きマスがN個あって、2つ空きマスを選ぶのはN*(N-1)/2
             // k = [0,N*(N-1)/2) → 空きマス二つを選ぶ
             int idx_move = k;
-            if (empty_cell < n_children) { // 2個選ぶ場合
+            if (empty_food == 2 and 2 <= empty_cell) { // 2個選ぶ場合
                 for (int i = 0; i < 77; ++i) {
                     if (used[i]) {
                         continue;
@@ -512,6 +567,8 @@ void Duct::Iterate() {
     nagiss_library::Stack<int, 200> path;
     // 展開されてない、エージェントのノードに到達したら抜ける
     // 7/22修正：自分が脱落したら抜けるようにした
+    // 7/23修正：食べ物が置けない場合(2個盤面にない場合)にmodelを呼び出さないにする
+    // 7/23修正：model側を修正して食べ物が置けない場合もmodelを呼び出すように
     while (true) {
         if (v->node_type == NodeType::AGENT_NODE) {
             if (!v->Expanded()) break; // 展開されていない
