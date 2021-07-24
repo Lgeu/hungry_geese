@@ -15,8 +15,8 @@ struct Duct {
     // コンストラクタ
     Duct();
 
-    constexpr static int node_buffer_size = 100000;
-    constexpr static int children_buffer_size = 10000000;
+    constexpr static int node_buffer_size = 400000;
+    constexpr static int children_buffer_size = 20000000;
     void Setprintlog(bool f);
     bool printlog = false;
 
