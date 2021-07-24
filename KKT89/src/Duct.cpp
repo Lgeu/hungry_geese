@@ -343,7 +343,7 @@ int Duct::Node::SmallChildrenSize() const {
         return n_children;
     }
     else {
-        return std::min(3, n_children);
+        return std::min(10, n_children);
     }
 }
 
@@ -400,9 +400,28 @@ int Duct::Node::ChooseMove(const int& t_sum, const int& cnt) {
         };
         
         // log(訪れた回数) を種類数とするようなイメージの実装(まだ実装考えてない)
-        // 未実装
+        auto Pick_from_log=[&]()->int{
+            if (cnt <= 1) {
+                return 0;
+            }
+            if ((1 << SmallChildrenSize()) * SmallChildrenSize() <= cnt) {
+                return (cnt - (1 << SmallChildrenSize()) * SmallChildrenSize()) % SmallChildrenSize();
+            }
+            for (int i = 1; i <= 10; ++i) {
+                if ((1 << i) * i > cnt) {
+                    // 種類数がi
+                    if ((1 << (i-1)) * i > cnt) {
+                        return i-1;
+                    }
+                    else {
+                        return (cnt - (1 << (i-1)) * i) % i;
+                    }
+                }
+            }
+            return 0;
+        };
 
-        return Pick_one_of_the_three();
+        return Pick_from_log();
     }
 }
 
