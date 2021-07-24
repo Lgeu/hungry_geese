@@ -421,7 +421,8 @@ int Duct::Node::ChooseMove(const int& t_sum, const int& cnt) {
             return 0;
         };
 
-        return Pick_from_log();
+        return Pick_one_of_the_three();
+        //return Pick_from_log();
     }
 }
 
