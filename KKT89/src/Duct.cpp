@@ -263,7 +263,7 @@ const std::array<std::array<float, 4>, 4>& Duct::Node::GetWorth() const {
 
 Duct::Node::Node() : state(), policy(), value(), worth(), n(), visited(), n_children(), children_offset(), node_type() {}
 
-Duct::Node::Node(const State& aState, nagiss_library::Stack<Node*, children_buffer_size>& children_buffer) : state(aState), policy(), value(), worth(), n(), visited(), children_offset(), node_type() {
+Duct::Node::Node(const State& aState, nagiss_library::Stack<Node*, children_buffer_size>& children_buffer) : state(aState), policy(), value(), worth(), n(), visited(), n_children(), children_offset(), node_type() {
     policy[0][0] = -100.0;
 
     if (aState.foods[0].Id() == -1 or aState.foods[1].Id() == -1) {
@@ -333,7 +333,18 @@ Duct::Node::Node(const State& aState, nagiss_library::Stack<Node*, children_buff
     ASSERT(n_children > 0, "n_childrenが0だよ");
 
     children_offset = children_buffer.size();
-    children_buffer.resize(children_offset + n_children, nullptr);
+    // 7/24
+    // 食べ物のノード減らすためにはここを修正する必要がある
+    children_buffer.resize(children_offset + SmallChildrenSize(), nullptr);
+}
+
+int Duct::Node::SmallChildrenSize() const {
+    if (node_type == NodeType::AGENT_NODE) {
+        return n_children;
+    }
+    else {
+        return std::min(3, n_children);
+    }
 }
 
 bool Duct::Node::Expanded() const {
@@ -346,7 +357,10 @@ float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int&
         + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt((float)t_sum) / (float)(1 + n[idx_agent][idx_move]);
 }
 
-int Duct::Node::ChooseMove(const int& t_sum) {
+// 7/24修正：返り値が{k番目の子, k番目のposition_id}に
+// KthChildrenに渡す順番と同一にした
+// pair廃止！！！
+int Duct::Node::ChooseMove(const int& t_sum, const int& cnt) {
     int k = 0;
     if (node_type == NodeType::AGENT_NODE) {
         unsigned char base = 1;
@@ -375,15 +389,25 @@ int Duct::Node::ChooseMove(const int& t_sum) {
             k += base * opt_action;
             base *= 3;
         }
+        return k;
     }
     else {
-        static std::mt19937 engine(std::chrono::steady_clock::now().time_since_epoch().count());
-        return engine() % n_children;
+        // 7/24：ここで食べ物のNodeの選び方の枝刈りをしたいなぁ
+
+        // とりあえず候補を3つ以下に絞る実装
+        auto Pick_one_of_the_three=[&]()->int{
+            return cnt % std::min(3, n_children);
+        };
+        
+        // log(訪れた回数) を種類数とするようなイメージの実装(まだ実装考えてない)
+        // 未実装
+
+        return Pick_one_of_the_three();
     }
-    return k;
 }
 
-Duct::Node& Duct::Node::KthChildren(nagiss_library::Stack<Node, node_buffer_size>& node_buffer, nagiss_library::Stack<Node*, children_buffer_size>& children_buffer, const int& k) {
+// 7/24：修正　Nodeのk番目の子、k番目のNodeのpositions_id(次の状態が一意に定まる変数)を渡すようにする
+Duct::Node& Duct::Node::KthChildren(nagiss_library::Stack<Node, node_buffer_size>& node_buffer, nagiss_library::Stack<Node*, children_buffer_size>& children_buffer, const int& k, nagiss_library::PermutationGenerator generator) {
     ASSERT_RANGE(k, 0, n_children);
     Node* child = children_buffer[children_offset + k];
     if (child == nullptr) {
@@ -438,7 +462,10 @@ Duct::Node& Duct::Node::KthChildren(nagiss_library::Stack<Node, node_buffer_size
             }
             // 空きマスがN個あって、2つ空きマスを選ぶのはN*(N-1)/2
             // k = [0,N*(N-1)/2) → 空きマス二つを選ぶ
-            int idx_move = k;
+
+            // 7/24修正
+            // ここでidx_moveを計算する
+            int idx_move = generator.GetKth((unsigned long long)children_offset * (unsigned long long)n_children + 9982443531000000007ull, n_children, k + 1);
             if (empty_food == 2 and 2 <= empty_cell) { // 2個選ぶ場合
                 for (int i = 0; i < 77; ++i) {
                     if (used[i]) {
@@ -576,14 +603,14 @@ void Duct::Iterate() {
             if (v->state.goose_size(0) == 0) break; // 自分が既に脱落している
         }
         // break されていなければ次のノードに行く
-        int move_idx = v->ChooseMove(t_sum);
+        int move_idx = v->ChooseMove(t_sum, v->visited);
         path.push(move_idx);
 
         // 7/23；Nodeに訪れた回数を記録
         // 多分ここで加算すれば良いと思ってる……
         v->visited++;
 
-        v = &v->KthChildren(node_buffer, children_buffer, move_idx);
+        v = &v->KthChildren(node_buffer, children_buffer, move_idx, p_generator);
     }
 
     // 抜けたところ(=リーフノード)でも加算
@@ -682,7 +709,7 @@ void Duct::Iterate() {
             v->worth[idx_agent][opt_action] += value[idx_agent];
             v->n[idx_agent][opt_action]++;
         }
-        v = &v->KthChildren(node_buffer, children_buffer, move_idx);
+        v = &v->KthChildren(node_buffer, children_buffer, move_idx, p_generator);
     }
 
     /*

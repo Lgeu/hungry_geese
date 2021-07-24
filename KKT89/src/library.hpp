@@ -227,7 +227,6 @@ struct Random {
     }
 };
 
-
 // キュー
 template<class T, int max_size> struct Queue {
     array<T, max_size> data;
@@ -413,6 +412,36 @@ template<class T, int max_size> struct Stack {
     }
 };
 
+// 順列ランダム生成
+struct PermutationGenerator {
+    // メンバ変数
+    std::array<int, 3000> permutation; // 常に0,1,2…
+    Stack<int, 100> chosen;
+    // コンストラクタ
+    PermutationGenerator() {
+        std::iota(permutation.begin(), permutation.end(), 0);
+    }
+    // 順列のK番目の要素を取得
+    // Kは1-indexed
+    int GetKth(unsigned long long seed, const int& length, const int& k){
+        ASSERT(1 <= k && k <= length, "順列の長さをkが超えてるよ");
+        chosen.clear();
+        for(int i=0; i<k; i++){
+            seed ^= seed << 9;
+            seed ^= seed >> 7;
+            const int r = seed % (length - i);  // se
+            std::swap(permutation[r], permutation[length - 1 - i]);
+            chosen.push(r);
+        }
+        int res = permutation[length - k];
+        for(int i=k-1; i>=0; i--){
+            const int r = chosen.back();
+            chosen.pop();
+            std::swap(permutation[r], permutation[length - 1 - i]);
+        }
+        return res;
+    }
+};
 
 // 時間 (秒)
 inline double time() {
