@@ -353,21 +353,22 @@ bool Duct::Node::Expanded() const {
 
 float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int& t_sum) {
     // UCB1
-    
+    /*
     constexpr static float c = 1.41421356f;
     auto res = (3.0f + GetWorth()[idx_agent][idx_move]) / (1.0f + (float)n[idx_agent][idx_move]);
     if ((t_sum + idx_agent) % 4 != 0) res += c * std::sqrt(std::log((float)(1 + t_sum)) / (float)(1 + n[idx_agent][idx_move]));
     return res;
+    */
     
     // mean UCB1-AlphaZero
-    /*
+    
     constexpr static float c = 1.41421356f;
     constexpr static float c_puct = 1.0f;
     auto res = (3.0f + GetWorth()[idx_agent][idx_move]) / (1.0f + (float)n[idx_agent][idx_move]);
     if ((t_sum + idx_agent) % 4 != 0) res += 0.5 * c * std::sqrt(std::log((float)(1 + t_sum)) / (float)(1 + n[idx_agent][idx_move]));
     res += 0.5 * c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt((float)t_sum) / (float)(1 + n[idx_agent][idx_move]);
     return res;
-    */
+    
     
     // alternate UCB1-AlphaZero
     /*
