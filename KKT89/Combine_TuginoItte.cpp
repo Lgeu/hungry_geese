@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "src/Duct.cpp"
+#include "src/Duct2.cpp"
 #include "src/Random.cpp"
 #include "src/Point.cpp"
 #include "src/Food.cpp"

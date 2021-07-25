@@ -3,6 +3,7 @@
 #include "./src/Stage.hpp"
 #include "./src/AgentResult.hpp"
 #include "./src/Duct.hpp"
+#include "./src/Duct2.hpp"
 
 void WriteAns(int direction) {
     if (direction == 0) {
@@ -44,6 +45,7 @@ int main(int aArgc, const char* aArgv[]) {
 
     static hungry_geese::Stage stage;
     static hungry_geese::Duct Agent;
+    static hungry_geese::Duct2 Agent2;
     float timelimit = 0.3;
 
     if (aArgc > 1) {
@@ -72,15 +74,15 @@ int main(int aArgc, const char* aArgv[]) {
         }
         else {
             // search
-            Agent.InitDuct(stage, i);
-            hungry_geese::AgentResult res = Agent.Search(timelimit);
+            Agent2.InitDuct(stage, i);
+            hungry_geese::AgentResult res = Agent2.Search(timelimit);
             // output
             WriteAns(res.mAction);
-            auto rootnode = Agent.RootNode();
-            for (int j = 0; j < 4; ++j) {
-                std::cout << rootnode.policy[i][j] << " ";
-            }
-            std::cout << std::endl;
+            // auto rootnode = Agent.RootNode();
+            // for (int j = 0; j < 4; ++j) {
+            //     std::cout << rootnode.policy[i][j] << " ";
+            // }
+            // std::cout << std::endl;
         }
     }
 
