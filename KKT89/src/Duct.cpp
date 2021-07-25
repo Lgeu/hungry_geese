@@ -371,7 +371,7 @@ float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int&
     */
     
     // alternate UCB1-AlphaZero
-    
+    /*
     constexpr static float c = 1.41421356f;
     constexpr static float c_puct = 1.0f;
     auto res = (3.0f + GetWorth()[idx_agent][idx_move]) / (1.0f + (float)n[idx_agent][idx_move]);
@@ -381,14 +381,14 @@ float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int&
         res += c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt((float)t_sum) / (float)(1 + n[idx_agent][idx_move]);
     }
     return res;
-    
+    */
     
     // AlphaZero
-    /*
-    constexpr float c_puct = 1.0f;
+    
+    constexpr float c_puct = 0.25f;
     return (3.0f + GetWorth()[idx_agent][idx_move]) / (1.0f + (float)n[idx_agent][idx_move]) 
         + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt((float)t_sum) / (float)(1 + n[idx_agent][idx_move]);
-    */
+    
 }
 
 // 7/24修正：返り値が{k番目の子, k番目のposition_id}に
