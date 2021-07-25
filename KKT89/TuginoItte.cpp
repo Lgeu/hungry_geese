@@ -46,6 +46,22 @@ int main(int aArgc, const char* aArgv[]) {
     static hungry_geese::Duct Agent;
     float timelimit = 0.3;
 
+    if (aArgc > 1) {
+        // 引数を記憶する
+        for (int n = 1; n < aArgc; ++n) {
+            // 探索時間の設定
+            if (std::strcmp(aArgv[n], "-t") == 0) {
+                timelimit = float(std::stof(aArgv[n + 1], nullptr));
+                n += 1;
+            }
+            // パラメータの設定
+            else if (std::strcmp(aArgv[n], "-p") == 0) {
+                Agent.nnue.SetParameter(aArgv[n + 1]);
+                n += 1;
+            }
+        }
+    }
+
     // input
     Input(stage);
 
