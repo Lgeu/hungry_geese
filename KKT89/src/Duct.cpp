@@ -362,8 +362,8 @@ float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int&
     
     // mean UCB1-AlphaZero
     /*
-    constexpr static float c = 1.41421356f;
-    constexpr static float c_puct = 1.0f;
+    constexpr static float c = 0.25f * 1.41421356f;
+    constexpr static float c_puct = 0.25f;
     auto res = (3.0f + GetWorth()[idx_agent][idx_move]) / (1.0f + (float)n[idx_agent][idx_move]);
     if ((t_sum + idx_agent) % 4 != 0) res += 0.5 * c * std::sqrt(std::log((float)(1 + t_sum)) / (float)(1 + n[idx_agent][idx_move]));
     res += 0.5 * c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt((float)t_sum) / (float)(1 + n[idx_agent][idx_move]);
@@ -389,6 +389,14 @@ float Duct::Node::Argvalue(const int& idx_agent, const int& idx_move, const int&
     return (3.0f + GetWorth()[idx_agent][idx_move]) / (1.0f + (float)n[idx_agent][idx_move]) 
         + c_puct * GetPolicy()[idx_agent][idx_move] * std::sqrt((float)t_sum) / (float)(1 + n[idx_agent][idx_move]);
     
+    
+    // AlphaKKT
+    /*
+    constexpr float c_puct = 0.25f;
+    constexpr float kkt = 0.005f;
+    return (3.0f + GetWorth()[idx_agent][idx_move]) / (1.0f + (float)n[idx_agent][idx_move]) 
+        + (c_puct * GetPolicy()[idx_agent][idx_move] + kkt) * std::sqrt((float)t_sum) / (float)(1 + n[idx_agent][idx_move]);
+    */
 }
 
 // 7/24修正：返り値が{k番目の子, k番目のposition_id}に
@@ -624,7 +632,17 @@ AgentResult Duct::Search(const float timelimit) {
         auto rootnode = RootNode();
         result.mValue = rootnode.value[0];
         for (int i = 0; i < 4; ++i) {
+            // 普通の
+            /*
             result.mPolicy[i] = (float)rootnode.n[0][i] / (float)(rootnode.n[0][0] + rootnode.n[0][1] + rootnode.n[0][2] + rootnode.n[0][3]);
+            */
+            
+            // worth を考慮
+            
+            constexpr static auto c_det = 500.0f;  // 小さいほど worth の影響が強くなる
+            const auto sum_n = rootnode.n[0][0] + rootnode.n[0][1] + rootnode.n[0][2] + rootnode.n[0][3];
+            result.mPolicy[i] = (rootnode.GetWorth()[0][i] + c_det * (float)rootnode.n[0][i] / (float)sum_n) / ((float)rootnode.n[0][i] + c_det);
+            
         }
     }
     unsigned char opt_action = 0;
