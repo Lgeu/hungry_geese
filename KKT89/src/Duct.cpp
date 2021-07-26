@@ -639,7 +639,7 @@ AgentResult Duct::Search(const float timelimit) {
             
             // worth を考慮
             
-            constexpr static auto c_det = 500.0f;  // 小さいほど worth の影響が強くなる
+            constexpr static auto c_det = 100.0f;  // 小さいほど worth の影響が強くなる
             const auto sum_n = rootnode.n[0][0] + rootnode.n[0][1] + rootnode.n[0][2] + rootnode.n[0][3];
             result.mPolicy[i] = (rootnode.GetWorth()[0][i] + c_det * (float)rootnode.n[0][i] / (float)sum_n) / ((float)rootnode.n[0][i] + c_det);
             
