@@ -1,0 +1,32 @@
+epoch 0
+epoch_loss = 0.7621592518690123
+epoch 1
+epoch_loss = 0.7496815192659819
+epoch 2
+epoch_loss = 0.7476219160148653
+epoch 3
+epoch_loss = 0.7466340588276148
+epoch 4
+epoch_loss = 0.7459441303044018
+epoch 5
+epoch_loss = 0.7454193267220149
+epoch 6
+epoch_loss = 0.7450132620259233
+epoch 7
+epoch_loss = 0.7447072016501531
+epoch 8
+epoch_loss = 0.7444470339182272
+epoch 9
+epoch_loss = 0.7442214861919494
+epoch 10
+epoch_loss = 0.7440088278726694
+epoch 11
+epoch_loss = 0.7438267793465253
+epoch 12
+epoch_loss = 0.7436743106524115
+epoch 13
+epoch_loss = 0.7435397990698829
+epoch 14
+epoch_loss = 0.743419100673703
+epoch 15
+epoch_loss = 0.7433142063190653
